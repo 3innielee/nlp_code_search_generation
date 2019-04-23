@@ -1,0 +1,4532 @@
+﻿Post_Link_ID,Question_Score,Question_Title,Question_Content,Answer,Tags
+50607128,47,Creating a nested dictionary from a flattened dictionary,"<p>I have a flattened dictionary which I want to make into a nested one, of the form</p>
+
+<pre><code>flat = {'X_a_one': 10,
+        'X_a_two': 20, 
+        'X_b_one': 10,
+        'X_b_two': 20, 
+        'Y_a_one': 10,
+        'Y_a_two': 20,
+        'Y_b_one': 10,
+        'Y_b_two': 20}
+</code></pre>
+
+<p>I want to convert it to the form</p>
+
+<pre><code>nested = {'X': {'a': {'one': 10,
+                      'two': 20}, 
+                'b': {'one': 10,
+                      'two': 20}}, 
+          'Y': {'a': {'one': 10,
+                      'two': 20},
+                'b': {'one': 10,
+                      'two': 20}}}
+</code></pre>
+
+<p>The structure of the flat dictionary is such that there should not be any problems with ambiguities. I want it to work for dictionaries of arbitrary depth, but performance is not really an issue. I've seen lots of methods for flattening a nested dictionary, but basically none for nesting a flattened dictionary. The values stored in the dictionary are either scalars or strings, never iterables.</p>
+
+<p>So far I have got something which can take the input </p>
+
+<pre><code>test_dict = {'X_a_one': '10',
+             'X_b_one': '10',
+             'X_c_one': '10'}
+</code></pre>
+
+<p>to the output</p>
+
+<pre><code>test_out = {'X': {'a_one': '10', 
+                  'b_one': '10', 
+                  'c_one': '10'}}
+</code></pre>
+
+<p>using the code</p>
+
+<pre><code>def nest_once(inp_dict):
+    out = {}
+    if isinstance(inp_dict, dict):
+        for key, val in inp_dict.items():
+            if '_' in key:
+                head, tail = key.split('_', 1)
+
+                if head not in out.keys():
+                    out[head] = {tail: val}
+                else:
+                    out[head].update({tail: val})
+            else:
+                out[key] = val
+    return out
+
+test_out = nest_once(test_dict)
+</code></pre>
+
+<p>But I'm having trouble working out how to make this into something which recursively creates all levels of the dictionary.</p>
+
+<p>Any help would be appreciated!</p>
+
+<p>(As for why I want to do this: I have a file whose structure is equivalent to a nested dict, and I want to store this file's contents in the attributes dictionary of a NetCDF file and retrieve it later. However NetCDF only allows you to put flat dictionaries as the attributes, so I want to unflatten the dictionary I previously stored in the NetCDF file.)</p>
+","def nest_dict(flat):
+    result = {}
+    for k, v in flat.items():
+        _nest_dict_rec(k, v, result)
+    return result
+
+def _nest_dict_rec(k, v, out):
+    k, *rest = k.split('_', 1)
+    if rest:
+        _nest_dict_rec(rest[0], v, out.setdefault(k, {}))
+    else:
+        out[k] = v
+
+flat = {'X_a_one': 10,
+        'X_a_two': 20, 
+        'X_b_one': 10,
+        'X_b_two': 20, 
+        'Y_a_one': 10,
+        'Y_a_two': 20,
+        'Y_b_one': 10,
+        'Y_b_two': 20}
+nested = {'X': {'a': {'one': 10,
+                      'two': 20}, 
+                'b': {'one': 10,
+                      'two': 20}}, 
+          'Y': {'a': {'one': 10,
+                      'two': 20},
+                'b': {'one': 10,
+                      'two': 20}}}
+print(nest_dict(flat) == nested)
+# True
+",<python><dictionary><recursion><nested><netcdf>
+41966568,9,Using regex to replace file data,"<p>With some help from <a href=""https://stackoverflow.com/questions/41902759/comparing-files-once-i-have-hostname/41907794?noredirect=1#comment71068443_41907794"">here</a> , I have this working almost exactly the way I want. Now I need to be able to add the ability to remove data from a <strong>file before the files are compared</strong>.</p>
+
+<p>The reason for this is the strings, ""data"", that i'm removing is known to differ each time the file is saved.</p>
+
+<p>I have written a regex to select the exact text that I want to remove, but I am having trouble implementing it with my current code.</p>
+
+<p><strong>Here are the three main functions</strong></p>
+
+<pre><code>HOSTNAME_RE = re.compile(r'hostname +(\S+)')
+def get_file_info_from_lines(filename, file_lines):
+    hostname = None
+    a_hash = hashlib.sha1()
+    for line in file_lines:
+        a_hash.update(line.encode('utf-8'))
+        match = HOSTNAME_RE.match(line)
+        if match:
+            hostname = match.group(1)
+    return hostname, filename, a_hash.hexdigest()
+
+def get_file_info(filename):
+    if filename.endswith(('.cfg', '.startup', '.confg')):
+        with open(filename, ""r+"") as in_file:
+            #filename = re.sub(REMOVE_RE, subst, filename, 0, re.MULTILINE)
+            return get_file_info_from_lines(filename, in_file.readlines())
+
+def hostname_parse(directory):
+    results = {}
+    i = 0
+    l = len(os.listdir(directory))
+    for filename in os.listdir(directory):
+        filename = os.path.join(directory, filename)
+        sleep(0.001)
+        i += 1
+        progress_bar(i, l, prefix = 'Progress:', suffix = 'Complete', barLength = 50)
+        info = get_file_info(filename)
+        if info is not None:
+            results[info[0]] = info
+    return results
+</code></pre>
+
+<p><strong>This is the regex for finding the strings to be removed.</strong></p>
+
+<pre><code>REMOVE_RE = r""((?:\bCurrent configuration)(?:.*\n?){6})""
+subst = """"
+</code></pre>
+
+<p><strong>EXAMPLE_FILE_BEFORE_DATA_REMOVED:</strong></p>
+
+<pre><code>Building configuration...
+
+Current configuration : 45617 bytes
+!
+! Last configuration change at 00:22:36 UTC Sun Jan 22 2017 by user
+! NVRAM config last updated at 00:22:43 UTC Sun Jan 22 2017 by user
+!
+version 15.0
+no service pad
+!
+no logging console
+enable secret 5 ***encrypted password***
+!
+username admin privilege 15 password 7 ***encrypted password***
+username sadmin privilege 15 secret 5 ***encrypted password***
+aaa new-model
+!
+ip ftp username ***encrypted password***
+ip ftp password 7 ***encrypted password***
+ip ssh version 2
+!
+line con 0
+ password 7 ***encrypted password***
+ login authentication maint
+line vty 0 4
+ password 7 ***encrypted password***
+ length 0
+ transport input ssh
+line vty 5 15
+ password 7 ***encrypted password***
+ transport input ssh
+!
+</code></pre>
+
+<p><strong>EXAMPLE_FILE_AFTER_DATA_REMOVED:</strong></p>
+
+<pre><code>Building configuration...
+
+!
+no service pad
+!
+no logging console
+enable 
+!
+username admin privilege 15 
+username gisadmin privilege 15 
+aaa new-model
+!
+ip ftp username cfgftp
+ip ftp 
+ip ssh version 2
+!
+line con 0
+
+ login authentication maint
+line vty 0 4
+
+ length 0
+ transport input ssh
+line vty 5 15
+
+ transport input ssh
+!
+</code></pre>
+
+<p>I've tried doing something like #filename = re.sub(REMOVE_RE, subst, filename, 0, re.MULTILINE) within the get_file_info and get_file_info_from_lines but I'm obviously not implementing it correctly.</p>
+
+<p>Any help would be appreciated as I am just learning.</p>
+
+<p><strong>Running the Compare:</strong></p>
+
+<pre><code>results1 = hostname_parse('test1.txt')
+results2 = hostname_parse('test2.txt')
+
+
+
+for hostname, filename, filehash in results1.values():
+    if hostname in results2:
+        _, filename2, filehash2 = results2[hostname]
+        if filehash != filehash2:
+            print(""%s has a change (%s, %s)"" % (
+                hostname, filehash, filehash2))
+            print(filename)
+            print(filename2)
+            print()
+</code></pre>
+
+<p>I do not want to modify the current file. If all of this can be done in memory or a temporary file would be great.</p>
+
+<p><strong>FULL CODE:</strong></p>
+
+<pre><code>import hashlib
+import os
+import re
+
+
+HOSTNAME_RE = re.compile(r'hostname +(\S+)')
+REMOVE_RE = re.compile(r""((?:\bCurrent configuration)(?:.*\n?){6})"")
+
+
+def get_file_info_from_lines(filename, file_lines):
+    hostname = None
+    a_hash = hashlib.sha1()
+    for line in file_lines:
+        #match = HOSTNAME_RE.match(line)
+        if not re.match(REMOVE_RE, line):
+            a_hash.update(line.encode('utf-8'))
+        #=======================================================================
+        # if match:
+        #     hostname = match.group(1)
+        #=======================================================================
+    return hostname, filename, a_hash.hexdigest()
+
+def get_file_info(filename):
+    if filename.endswith(('.cfg', '.startup', '.confg')):
+        with open(filename, ""r+"") as in_file:
+            return get_file_info_from_lines(filename, in_file.readlines())
+
+def hostname_parse(directory):
+    results = {}
+    for filename in os.listdir(directory):
+        filename = os.path.join(directory, filename)
+        info = get_file_info(filename)
+        if info is not None:
+            results[info[0]] = info
+    return results
+
+
+results1 = hostname_parse('test1') #Directory of test files
+results2 = hostname_parse('test2') #Directory of test files 2
+
+
+
+for hostname, filename, filehash in results1.values():
+    if hostname in results2:
+        _, filename2, filehash2 = results2[hostname]
+        if filehash != filehash2:
+            print(""%s has a change (%s, %s)"" % (
+                hostname, filehash, filehash2))
+            print(filename)
+            print(filename2)
+            print()
+</code></pre>
+","def get_file_info_from_lines(filename, file_lines):
+    hostname = None
+    a_hash = hashlib.sha1()
+    for line in file_lines:
+        if ""! Last "" in line:
+            line = ''
+        if ""! NVRAM "" in line:
+            line = ''
+        a_hash.update(line.encode('utf-8'))
+        match = HOSTNAME_RE.match(line)
+        if match:
+            hostname = match.group(1)
+",<python><regex><python-2.7><file-io>
+43788106,9,Convert a list of numbers to ranges,"<p>I have a bunch of numbers, say the following:</p>
+
+<pre><code>1 2 3 4  6 7 8  20 24 28 32
+</code></pre>
+
+<p>The information presented there could be represented in Python as ranges:</p>
+
+<pre><code>[range(1, 5), range(6, 9), range(20, 33, 4)]
+</code></pre>
+
+<p>In my output I'd write <code>1..4, 6..8, 20..32..4</code>, but that is just a matter of presentation.</p>
+
+<p><a href=""https://stackoverflow.com/a/4629241"">Another answer</a> shows how one can do this for contiguous ranges. I don't see how I can easily do this for strided ranges like above. Is there a similar trick for this?</p>
+","def get_ranges(ls):
+    N = len(ls)
+    while ls:
+        # single element remains, yield the trivial range
+        if N == 1:
+            yield range(ls[0], ls[0] + 1)
+            break
+
+        diff = ls[1] - ls[0]
+        # find the last index that satisfies the determined difference
+        i = next(i for i in range(1, N) if i + 1 == N or ls[i+1] - ls[i] != diff)
+
+        yield range(ls[0], ls[i] + 1, diff)
+
+        # update variables
+        ls = ls[i+1:]
+        N -= i + 1
+",<python>
+45163368,6,Least number of perfect square numbers that sums upto n,"<p>The question is:</p>
+
+<blockquote>
+  <p>Given a positive integer n, find the least number of perfect square numbers (for example, 1, 4, 9, 16, ...) which sum to n. <a href=""https://leetcode.com/problems/perfect-squares/#/description"" rel=""nofollow noreferrer"">Link</a> to the question</p>
+</blockquote>
+
+<p><strong>Example</strong></p>
+
+<p>Given n = 12, return 3 because 12 = 4 + 4 + 4; given n = 13, return 2 because 13 = 4 + 9.</p>
+
+<p><strong>NOTE</strong>  </p>
+
+<blockquote>
+  <p>The approach i have taken is similar to an <strong>Integer Knapsack problem with duplicates allowed</strong>. First i calculated all the perfect squares which are less than equal to the number n. Now once i have them, the problem is similar to the Integer Knapsack problem. I have a number n and a list of numbers. i want to choose minimum number of numbers from the list such that their sum is equal to n. This problem has a DP solution which i have used.</p>
+  
+  <p>Out of 586 test cases, i passed 562 test cases and got <strong>TLE</strong> on the next one. The value of n for that testcase is 3428.</p>
+</blockquote>
+
+<p>The solution i submitted:  </p>
+
+<pre><code>class Solution(object):
+    def numSquares(self,n):
+        if(n == 0):
+            return 0
+        if(n == 1):
+            return 1
+        squares = self.findSquares(n) # returns a list of perfect squares &lt;= n
+        rows = len(squares)
+        cols = n + 1
+        mat = []
+        for i in range(rows):
+            mat.append([0] * cols)
+
+        for i in range(cols):
+            mat[0][i] = i
+
+        for i in range(rows):
+            mat[i][0] = 0
+
+        min = mat[0][cols - 1]
+        for i in range(1,rows):
+            for j in range(1,cols):
+                if(j &lt; squares[i]):
+                    mat[i][j] = mat[i - 1][j]
+
+                else:
+                    mat[i][j] = self.min(mat[i - 1][j], (j // squares[i] + (mat[i][j % squares[i]])))
+                if(j == cols - 1 and mat[i][j] &lt; min):
+                    min = mat[i][j]
+        '''
+        for i in range(rows):
+            for j in range(cols):
+                print(mat[i][j],end="" "")
+            print()
+            '''
+        return min
+
+    def min(self,a,b):
+        if(a &lt;= b):
+            return a
+        else:
+            return b
+
+
+    def findSquares(self,n):
+
+        i = 1
+        squares = []
+        while (i * i &lt;= n):
+            squares.append(i * i)
+            i = i + 1
+        return squares
+'''
+x = Solution()
+
+print(x.numSquares(43))
+'''
+</code></pre>
+
+<p>Thanks in advance.</p>
+","def numSquares(self,n):
+    if(n == 0):
+        return 0
+    if(n == 1):
+        return 1
+    squares = self.findSquares(n)
+    rows = len(squares)
+    cols = n + 1
+    mat = [n] * cols
+    mat[0] = 0
+
+    for s in squares:
+        for j in range(s,cols):
+            mat[j] = min(mat[j], 1 + mat[j - s])
+
+    return mat[n]
+",<algorithm><python-3.x><data-structures><dynamic-programming><discrete-mathematics>
+49282032,4,Best algorithm for converting real number between 0 and 1 to index,"<p>Suppose x is a real number between 0 and 1</p>
+
+<p>If n = 2 there are two fractions ranges 0 to 0.5 and 0.5 to 1</p>
+
+<p>If n = 3 there are three fractions ranges 0 to 0.33, 0.33 to 0.66 and 0.66 to 1</p>
+
+<p>I want to know the most efficient algorithm that tells which fraction x belongs to.</p>
+
+<p>If x = 0.2 and n = 3, x belongs to first fraction so index is 0</p>
+
+<p>If x = 0.4 and n = 3, x belongs to second fraction so index is 1</p>
+
+<p>Here's the python 3 code which has O(N) complexity.</p>
+
+<pre><code>def index(x, n):
+  for i in range(0, n):
+    if i/n &lt;= x and x &lt;= (i + 1)/n:
+      return i
+</code></pre>
+
+<p>I want to know if there is a better algorithm may be with constant time?</p>
+
+<p>Edit: I did not explicitly said before but both 0 and 1 is a legit value for x and result should be n - 1 when x = 1</p>
+","def index(x, n):
+    return int(x*n)
+",<python><python-3.x><algorithm>
+48730424,4,Split up a number as the sum of two powers,"<p>x is my input. 
+I need to find i,j>=0 and  n,m>1 such as <code>x = i**m+j**n</code></p>
+
+<p>For now I have been doing this , but it is way to slow !! How can I improve it ? </p>
+
+<pre><code>from math import sqrt
+import numpy as np
+
+def check(x):
+    for i in range(1,int(np.ceil(sqrt(x)))):
+        for j in range(1,int(np.ceil(sqrt(x)))):
+            for m in range(2,x/2+1):
+                for n in range(2,x/2+1):
+                    if((pow(i,m) +pow(j,n))==x):
+                        print 'Yes';
+                        return ;
+    print 'No';
+</code></pre>
+
+<p>thank you ! </p>
+","def check(x):
+    all_powers = set([1]) #add 1 as a special case
+
+    #find all powers smaller than x 
+    for base in range(2,int(math.ceil(sqrt(x)))):
+        exponent = 2;
+        while pow(base, exponent) &lt; x:
+            all_powers.add(pow(base, exponent))
+            exponent+=1
+
+    #check if a pair of elements in all_powers adds up to x
+    for power in all_powers:
+        if (x - power) in all_powers:
+            print 'Yes'
+            return
+    print 'No'
+",<python><algorithm><math><optimization>
+42103332,4,Changing the letters of a string,"<p>I have to write a code that shifts each letter of a string (cipher) a given number (shift) further through the alphabet.  The code I've written so far is as follows (with an example to test the function):</p>
+
+<pre><code>    def decode(cipher, shift):
+        letters = ""ABCDEFGHIJKLMNOPQRSTUVWXYZ""
+        for letter in cipher:
+            index = letters.index(letter)
+            cipher = cipher.replace(letter, letters[index-shift])
+        return cipher
+    print decode(""LIPPSASVPH"", 4)
+</code></pre>
+
+<p>It almost works, except what is happening is that as the code runs through cipher, it will change any letter that matches the one it is currently changing, so for my example, it's supposed to return ""HELLOWORLD"" but it instead returns ""DELLOWORLD"" because the last letter of cipher is H, and the code previously changed the L at the beginning of cipher to an H, so then the code changes both H's to D's.  Any suggestions on how to make the code run on each letter individually without changing other letters as well?  Thanks so much, everyone. </p>
+","def decode(cipher, shift):
+    letters = ""ABCDEFGHIJKLMNOPQRSTUVWXYZ""
+    result = ''
+    for letter in cipher:
+        index = letters.index(letter)
+        result += letters[index - shift]
+        # cipher = cipher.replace(letter, letters[index - shift])
+    return result
+print decode(""LIPPSASVPH"", 4)
+",<python>
+46103724,4,Function to join the first 2 elements from each list in a list of lists,"<p>I have this list of lists:</p>
+
+<pre><code>listoflist = [['BOTOS', 'AUGUSTIN', 14, 'March 2016', 600, 'ALOCATIA'], ['HENDRE', 'AUGUSTIN', 14, 'February 2015', 600, 'ALOCATIA']]
+</code></pre>
+
+<p>^^ That was just a example, I will have many more lists in my list of lists with the same format. 
+This will be my desired output:</p>
+
+<pre><code>listoflist = [['BOTOS AUGUSTIN', 14, 'March 2016', 600, 'ALOCATIA'], ['HENDRE AUGUSTIN', 14, 'February 2015', 600, 'ALOCATIA']]
+</code></pre>
+
+<p>Basically in each list I want to join first index with the second to form a full name in one index like in the example.
+And I would need a function for that who will take a input a list, how can  I do this in a simple way? (I don't want extra lib for this). I use python 3.5, thank you so much for your time!</p>
+","def merge_names(lst):
+   for l in lst:
+      l[0:2] = [' '.join(l[0:2])]
+
+merge_names(listoflist)
+print(listoflist)
+# [['BOTOS AUGUSTIN', 14, 'March 2016', 600, 'ALOCATIA'], ['HENDRE AUGUSTIN', 14, 'February 2015', 600, 'ALOCATIA']]
+",<python><python-3.x><list>
+49224022,3,"Python given an array A of N integers, returns the smallest positive integer (greater than 0) that does not occur in A in O(n) time complexity","<p>I have written two solutions to that problem. The first one is good but I don't want to use any external libraries + its O(n)*log(n) complexity. The second solution ""In which I need your help to optimize it"" gives an error when the input is chaotic sequences length=10005 (with minus).</p>
+
+<p>Solution 1:</p>
+
+<pre><code>from itertools import count, filterfalse 
+
+
+def minpositive(a):
+    return(next(filterfalse(set(a).__contains__, count(1))))
+</code></pre>
+
+<p>Solution 2:</p>
+
+<pre><code>def minpositive(a):
+    count = 0
+    b = list(set([i for i in a if i&gt;0]))
+    if min(b, default = 0)  &gt; 1 or  min(b, default = 0)  ==  0 :
+        min_val = 1
+    else:
+        min_val = min([b[i-1]+1 for i, x in enumerate(b) if x - b[i - 1] &gt;1], default=b[-1]+1)
+
+    return min_val
+</code></pre>
+
+<blockquote>
+  <p>Note: This was a demo test in codility, solution 1 got 100% and
+  solution 2 got 77 %.<br>
+  Error in ""solution2"" was due to:<br>
+  Performance tests ->
+  medium  chaotic sequences length=10005 (with minus) got 3 expected
+  10000<br>
+  Performance tests -> large chaotic + many -1, 1, 2, 3 (with
+  minus) got 5 expected 10000</p>
+</blockquote>
+","def minpositive(a):
+    A = set(a)
+    ans = 1
+    while ans in A:
+       ans += 1
+    return ans
+",<python><python-3.x><algorithm><time-complexity>
+53874786,3,How to add values from dictionaries in another dictionary?,"<p>I'm so lost in this small program I want to build... 
+I have a scoreboard dictionary where I want to add scores from another dictionary. My code is looking something like this:</p>
+
+<p>Edit: I have to add scores, not replace.</p>
+
+<pre><code>def addScore(scorebord, scores):
+    # add values for common keys between scorebord and scores dictionaries
+    # include any keys / values which are not common to both dictionaries
+
+def main():
+    scorebord = {}
+
+    score = {'a':1,
+             'b':2,
+             'c':3}
+
+    addScore(scorebord, score)
+
+if __name__ == ""__main__"":
+    main()
+</code></pre>
+
+<p>Does anyone know how to write this function?</p>
+","def addScore(scorebord, scores):
+    for key, value in scores.items():
+        if key in scorebord:
+            scorebord[key] += value
+        else:
+            scorebord[key] = value
+
+def main():
+    scorebord = {}
+    score = {'a':1,
+             'b':2,
+             'c':3}
+
+    addScore(scorebord, score)
+
+if __name__ == ""__main__"":
+    main()
+",<python><dictionary><add>
+41588905,3,Using the lambda function for a function that depends on the input,"<p>As an input, I have a list of nonnegative whole numbers which are supposed to be the coefficients of a polynomial. But I also want to evaluate the polynomial for a certain number x.</p>
+
+<p>For example: </p>
+
+<p>If we have <code>L=[2,3,1]</code> as an input and <code>x=42</code> we get <code>2x^2+3x+1=3655</code>
+What I want is for example:</p>
+
+<pre><code>&gt;&gt;&gt;p=polynomial([2,3,1])
+&gt;&gt;&gt;p(O)
+1 
+&gt;&gt;&gt;p(42)
+&gt;&gt;&gt;3655
+</code></pre>
+
+<p>I guess I have to make use of the lambda function somehow, and I do know how it works for two variables on a given function, but in this case the function depends on my input.</p>
+
+<pre><code>def polynomial(coef):
+coef=coef[::-1]
+for i in range(len(coef)):
+    p=lambda x: coef[i]*x**i
+    p+=p
+return lambda x: p
+</code></pre>
+
+<p>This is of course absolute nonsense, as I cannot add up one lambda function to another, but this is what my approaching ""intuition"" is.</p>
+
+<p>Some hints are much appreciated.</p>
+","def make_poly(coefs):
+    def poly(x):
+        result = 0
+        for c in coefs:
+            result = result * x + c
+        return result
+    return poly
+
+p = make_poly([2,3,1])
+
+print(p(0))
+print(p(42))
+",<python><lambda>
+46049566,3,Optimizing DFS in python,"<p>I'm learning algorithms and was doing this <a href=""https://leetcode.com/problems/friend-circles/description/"" rel=""nofollow noreferrer"">problem</a> which is finding the number of regions. I tried a depth first search approach using python but I am getting a call stack exceeded error. Can anyone tell me whats the flaw in my implementation and how to overcome it? The code is:</p>
+
+<pre><code>def findCircleNum(A):
+
+    count = 0
+
+    def dfs(row, column):
+        if row &lt; 0 or column &gt;= len(A[0]) or row &gt;= len(A) or column &lt; 0:
+            return
+
+        if A[row][column] == 0:
+            return
+
+        A[row][column] = 0
+
+        for i in range(row-1, row+2):
+            if i &gt;= 0 and i&lt;len(A) and A[i][column] == 1:
+                dfs(i, column)
+        for i in range(column-1, column+2):
+            if i &gt;= 0 and i&lt;len(A[0]) and A[row][i] == 1:
+                dfs(row, i)
+
+
+
+
+    for row in range(len(A)):
+        for column in range(len(A[0])):
+            if A[row][column] == 1:
+                dfs(row, column)
+                count += 1
+
+
+    return count
+
+
+findCircleNum(m)
+</code></pre>
+
+<p>The input it fails on is a 100x100 matrix of all 1's</p>
+
+<p>The error is get is :</p>
+
+<pre><code>RuntimeError: maximum recursion depth exceeded
+</code></pre>
+
+<p>Thanks!</p>
+","def findCircleNum(A):
+    count = 0
+    visited = set()
+
+    def dfs(student):
+        if student in visited:
+            return
+
+        visited.add(student)
+        for i, friend in enumerate(A[student]):
+            if friend:
+                dfs(i)
+
+    for student in range(len(A)):
+        # Note we want to track circles, student without any friend won't count
+        if student not in visited and any(A[student]):
+            dfs(student)
+            count += 1
+
+    return count
+",<python><algorithm><depth-first-search>
+55542532,3,Checking if a value exists in randomly generated array,"<p>An array is randomly generated by a fixed code and we have to work based on that code. I need to check if a specific value is existing in the array or not.</p>
+
+<p>I have tried these two solutions but none of these works:</p>
+
+<pre><code>if a[5][0] in a
+if a[5][0] != """"
+</code></pre>
+
+<p>I have provided an example of the array</p>
+
+<pre><code>[['Stack 5', 'Suit C', 9, 0],
+  ['Stack 4', 'Suit B', 6, 0],
+  ['Stack 6', 'Suit B', 8, 0],
+  ['Stack 3', 'Suit C', 3, 0],
+  ['Stack 1', 'Suit C', 10, 0],
+  ['Stack 2', 'Suit B', 4, 0]]
+</code></pre>
+
+<p>Basically I need to check if 'Stack X' is present in the array and then to conduct the operations. Sometimes, the randomly generated array might miss any certain stack, for instance,</p>
+
+<pre><code>[['Stack 5', 'Suit C', 9, 0],
+ ['Stack 4', 'Suit B', 6, 0],
+ ['Stack 6', 'Suit B', 8, 0],
+ ['Stack 3', 'Suit C', 3, 0],
+ ['Stack 2', 'Suit B', 4, 0]]
+</code></pre>
+
+<p>Stack 1 is not generated in this case and I need to check if it has been generated or not. It is basically an array within an array.</p>
+
+<p><strong>EDIT:</strong>
+Thanks for your help guys but I solved the issue using a for loop. Here is the code I used.</p>
+
+<pre><code>for i in range(len(a)):
+    if a[i][0] == 'Stack 1':
+</code></pre>
+","def a_contains(num):
+    for item in a:
+        if 'Stack {}'.format(num) in item:
+            return True
+    return False
+",<python><arrays><list>
+41727941,3,Create New List of Repeated Elements Within a Given List,"<p>I want my program to take a list that is already created, go through it and check for any elements that repeat. Then create a new list with just the elements that repeat.</p>
+
+<pre><code>def repeated_elements(data):
+    repeats = []
+    for element in data:
+        result = data.count(element)
+        if result &gt; 1:
+            repeats.append(element)
+       return data
+print (repeated_elements([1, 2, 3, 1, 3]))#should print out [1, 3, 1, 3]
+print (repeated_elements([1, 2, 3, 4, 5]))# should print out []
+print (repeated_elements([5, 5, 5, 5, 5]))# should print out [5, 5, 5, 5, 5]
+print (repeated_elements([10, 9, 10, 10, 9, 8]))# should print out [10, 9, 10, 10, 9]
+</code></pre>
+
+<p>The program ends up printing out the starting sets</p>
+","def repeated_elements(data):
+    repeats = []
+    for element in data:
+        result = data.count(element)
+        if result &gt; 1:
+            repeats.append(element)
+    return repeats
+",<python><python-3.x>
+50122606,3,How do I format the floats in specific manner?,"<p>I have two floats numbers as a result for a python code.</p>
+
+<pre><code>30.00 
+3995.0081
+</code></pre>
+
+<p>I want to format them in such a way they have a total equal no. of digits(example 11). For example the above two digits will produce the following result.</p>
+
+<pre><code>30.000000000
+3995.0081000
+</code></pre>
+
+<p>If you notice, the no. of degits after the decimal point in these two are unequal yet total no. of degits are the same.
+I tried to use the following method</p>
+
+<pre><code>print('{0:11.9f}'.format(number))
+</code></pre>
+
+<p>But it produces the following result which is wrong.</p>
+
+<pre><code>30.000000000
+3995.008100000
+</code></pre>
+
+<p>Is there any method or function which can produce the desired result ?</p>
+","def sizer(input_number):
+    output = str(float(input_number)) + '0' * 11  # or some number in excess of the desired number of digits 
+    output = output[0:12]  # based on the example of 11 desired digits
+    print(output)
+
+sizer(30.00)
+sizer(3995.0081)
+",<python><python-3.x>
+42189413,3,Wrong value for cube root in Python,"<p>Using Python 3.5 both at <a href=""https://repl.it/languages/python3"" rel=""nofollow noreferrer"">repl.it</a> and the console in Windows, I get wrong answers for cube roots. </p>
+
+<p>When the input is <code>(-1)**(1/3)</code>,
+I get the complex number (0.5000000000000001+0.8660254037844386j) as the answer when it should simply be -1. Any negative value under this root seems to give a complex result. </p>
+
+<p>Am I doing something wrong?</p>
+","def cubeRoot(x):
+    if x &gt;= 0:
+        return x**(1/3)
+    else:
+        return -(-x)**(1/3)
+",<python><math>
+44666512,3,Multiply numbers and return the number with a decimal,"<p>I don't know if i am asking my question right, but i want to know if its possible for me to multiply two numbers, and place a decimal depending on the length of the number?</p>
+
+<p>I am currently doing something like this</p>
+
+<pre><code>def multiply(input1, input1):
+    num = (input1 * input1)
+    if len(str(num)) == 4 and str(num).isdigit():
+        print(num)
+
+    return num
+
+multiply(225, 10)
+</code></pre>
+
+<p>Instead of returning something like 2250, i will like to return something like 2.25k. Is there an inbuilt function in python to achieve this?</p>
+
+<p>Thank you.</p>
+
+<p>Now i am currently doing something like this</p>
+
+<pre><code>from __future__ import division
+    def multiply(string1, string2):
+        num = (string1 * string2)
+        if len(str(num)) == 4 and str(num).isdigit():
+            num = format(num/1000, '.2f')
+            print(num + ""k"")
+        elif len(str(num)) == 5 and str(num).isdigit():
+            num = format(num/1000, '.1f')
+            print(num + ""k"")
+        return num
+multiply(225, 10)
+</code></pre>
+
+<p>How efficient is this? </p>
+","def m(a, b):
+     num = float(a * b)
+
+     if num / 1000 &gt; 1:
+         return str(num/1000) + ""k""
+     else:
+         return num
+
+&gt;&gt;&gt; m(225, 10)
+'2.25k'
+",<python><math><division>
+47779673,3,Return multiple lists in Python,"<p>I have this part of a code:</p>
+
+<pre><code>def readTXT():
+    part_result = []
+    '''Reading all data from text file'''
+    with open('dataset/sometext.txt', 'r') as txt:
+        for lines in txt:
+            part = lines.split()
+            part_result = [int(i) for i in part]
+            #sorted([(p[0], p[14]) for p in part_result], key=lambda x: x[1])
+            print(part_result)
+            return part_result
+</code></pre>
+
+<p>And I'm trying to get all lists as a return, but for now I'll get only the first one, what is quite obvious, because my <code>return</code> is inside the for loop. But still, shouldn't the loop go through every line and return the corresponding list? </p>
+
+<p>After doing research, all I found was <code>return list1, list2</code> etc. But have should I manage it, if my lists will be generated from a text file line by line? </p>
+
+<p>It frustates me, not being able to return multiple lists at once. </p>
+","def readTXT():
+    #create a new array
+    major_array = [] 
+    part_result = []
+    '''Reading all data from text file'''
+    with open('dataset/sometext.txt', 'r') as txt:
+        for lines in txt:
+            part = lines.split()
+            part_result = [int(i) for i in part]
+            #sorted([(p[0], p[14]) for p in part_result], key=lambda x: x[1])
+            print(part_result)
+            major_array.append(part_result)
+         return major_array
+",<python><list>
+55232997,2,Print every other string character * Index position* 2+2,"<p>I am trying to build a Python function that returns a string that contains every other character duplicated by the following algorithm:</p>
+
+<pre><code>Index position * 2 + 2
+</code></pre>
+
+<p>for example: <code>Testing --&gt; TTssssssiiiiiiiiiigggggggggggggg</code></p>
+
+<p>Below is my code but I get an error:</p>
+
+<blockquote>
+  <p>IndexError: string index out of range </p>
+</blockquote>
+
+<p>Version A:</p>
+
+<pre><code>def string_expansion(input_string):
+i = 0
+while i &lt; len(string):
+    i += 1
+    if input_string[::2] == string[i]:
+        return input_string[i] * (i * 2) + 2
+</code></pre>
+
+<p>second version returns none when I pass an argument</p>
+
+<p>Version B:</p>
+
+<pre><code>def string_expansion(input_string):
+i = 0
+while i &lt; len(string):
+    if input_string[::2] == string[i]:
+        return input_string[i] * (i * 2) + 2
+    i += 1
+</code></pre>
+
+<p>Any assistance would be greatly appreciated. Thank you.</p>
+","def string_expansion(input_string):
+    i = 0
+    str=""""
+    while i &lt; len(input_string):
+        str =str+input_string[i] * ((i * 2) + 2)
+        i=i+2        
+    print(str)
+string_expansion(""testing"")
+",<python><loops>
+53367639,2,Merging 2 lists (not using pandas),"<p>I am trying to do an inner join with 2 lists in python, without using pandas or numpy libraries.</p>
+
+<p>The function combine has parameters:
+One: first list; Two: second list; left: indice of column in first list; right: indice of column in second list</p>
+
+<p>I am trying to combine the 2 lists based on the indices of each list having elements that equal and then joining their elements together.</p>
+
+<p>So far I have this code: </p>
+
+<pre><code>def combine(one, two, left, right):
+    combined = []
+    for x in one:                         #for elements in list one
+        for y in two:                     #for elements in list two
+            if x[left] == y[right]:       #if both elements at each indice equal
+                combined = [x,y]          #place x and y values into combined list
+
+    print(combined)
+
+
+one = [['apple', 'fruit'],
+       ['broccoli', 'vegetable']]
+two = [['fruit', '1'],
+       ['vegetable', '1']]
+
+combine(one, two, 1, 0 )
+</code></pre>
+
+<p>For some reason i am getting an empty list:  []</p>
+
+<p>The desired output is:</p>
+
+<pre><code> [['apple', 'fruit', 'fruit', '1'],
+ ['broccoli', 'vegetable', 'vegetable', '1']]
+</code></pre>
+
+<p>Any ideas/tips of how i can accomplish this?</p>
+","def combine(one, two, left, right):
+    combined = []
+    for x in one:  #for elements in list one
+        for y in two:  #for elements in list two
+            if x[left] == y[right]:  #if both elements at each indice equal
+                combined.append(
+                    x + y)  #place x and y values into combined list
+
+    print(combined)
+
+
+one = [['apple', 'fruit'], ['broccoli', 'vegetable']]
+two = [['fruit', '1'], ['vegetable', '1']]
+
+combine(one, two, 1, 0)
+",<python><python-2.7>
+46705546,2,Python - replace every nth occurrence of string,"<p>I have pulled the below snippet from question <a href=""https://stackoverflow.com/questions/35091557/replace-nth-occurrence-of-substring-in-string"">Replace nth occurrence of substring in string</a>.</p>
+
+<p>which will replace a single occurrence at the an nth substring. However I would like to replace all occurrences at every nth substring</p>
+
+<p>so if there are 30 occurrences of a substring within the string, I would want to replace entires 10 and 20 for example, but im not sure how to achieve this at all</p>
+
+<pre><code>def nth_repl(s, sub, repl, nth):
+    find = s.find(sub)
+    # if find is not p1 we have found at least one match for the substring
+    i = find != -1
+    # loop util we find the nth or we find no match
+    while find != -1 and i != nth:
+        # find + 1 means we start at the last match start index + 1
+        find = s.find(sub, find + 1)
+        i += 1
+    # if i  is equal to nth we found nth matches so replace
+    if i == nth:
+        return s[:find]+repl+s[find + len(sub):]
+    return s
+</code></pre>
+","def nth_repl_all(s, sub, repl, nth):
+    find = s.find(sub)
+    # loop util we find no match
+    i = 1
+    while find != -1:
+        # if i  is equal to nth we found nth matches so replace
+        if i == nth:
+            s = s[:find]+repl+s[find + len(sub):]
+            i = 0
+        # find + len(sub) + 1 means we start after the last match
+        find = s.find(sub, find + len(sub) + 1)
+        i += 1
+    return s
+",<python>
+55670599,2,Trying to find sum of digits between two numbers,"<p>Trying to figure out how to find the sum of digits between two numbers(including those numbers) using a function in python. </p>
+
+<p>I tried recursion for each individual argument and then subtracted them to compensate for the numbers in between. Then I added these two and got my sum, which is incorrect for every argument unless the digits are below 10. Not sure of the proper way to approach this problem, please help.</p>
+
+<pre><code>def sum_digits(a, b):
+""""""sum of digits between two numbers""""""
+  sum = 0
+  ones = a - b
+  if ones &lt; 0:
+    ones = ones * -1
+
+
+  if a &gt;= 10 and b &gt;= 10:
+    sum += ones
+
+
+  while a &gt; 0 and b &gt; 0:
+    d = a % 10 + b % 10
+    a = a // 10
+    b = b // 10
+    sum += d
+
+  return sum
+</code></pre>
+","def sum_digits(a, b):
+    sum = 0
+    for i in range(a,b+1):
+        for e in (str(i)):
+            sum += int(e)
+    return sum
+
+print(sum_digits(17, 20))
+",<python>
+55680618,2,Capitalizing the first letter of every sentence python,"<p>I have been trying to create a small function for a menu project I have where the function takes a string as input and capitalizes the first letter of each sentence. I think I'm pretty close to having it right, but it keeps giving me a concatenation error that I can't seem to fix. Anyone know where I went wrong here?</p>
+
+<pre><code>def fix_capitalization(usrStr):
+    s1 = usrStr.split("". "")
+    s2 = [s1[0].capitalize() + s1[1:] for i in s1]
+    st2 = '. '.join(s2)
+
+    return st2
+</code></pre>
+","def fix_capitalization(usrStr):
+    s1 = usrStr.split("". "")
+    s2 = [i[0].capitalize() + i[1:] for i in s1]
+    st2 = '. '.join(s2)
+
+    return st2
+",<python><python-3.x><string><concatenation>
+55239281,2,Detecting outliers from a list,"<p>I want to detect and store outliers from a list and this is what I am doing</p>
+
+<p>Code:</p>
+
+<pre><code>def outliers(y,thresh=3.5):
+
+    m = np.median(y)
+    abs_dev = np.abs(y - m)
+    left_mad = np.median(abs_dev[y &lt;= m])
+    right_mad = np.median(abs_dev[y &gt;= m])
+    y_mad = left_mad * np.ones(len(y))
+    y_mad[y &gt; m] = right_mad
+    modified_z_score = 0.6745 * abs_dev / y_mad
+    modified_z_score[y == m] = 0
+    return modified_z_score &gt; thresh
+
+bids = [5000,5500,4500,1000,15000,5200,4900]
+
+z = outliers(bids)
+bidd = np.array(bids)
+out_liers = bidd[z]
+</code></pre>
+
+<p>This gives results as:</p>
+
+<pre><code>out_liers = array([ 1000, 15000])
+</code></pre>
+
+<p>Is there a better way to do this, where I don't get the results in array but in a list?
+Also please can someone explain me why we used </p>
+
+<blockquote>
+  <p>thresh=3.5</p>
+  
+  <p>modified_z_score = 0.6745 * abs_dev / y_mad</p>
+</blockquote>
+","def outliers_modified_z_score(ys, threshold=3.5):
+    ys_arr = np.array(ys)
+    median_y = np.median(ys_arr)
+    median_absolute_deviation_y = np.median(np.abs(ys_arr - median_y))
+    modified_z_scores = 0.6745 * (ys_arr - median_y) / median_absolute_deviation_y
+    return (ys_arr[np.abs(modified_z_scores) &gt; threshold]).tolist()
+",<python><arrays><python-3.x><list><outliers>
+54630511,2,Python - Defining fraction,"<p>Using Python define named fraction 
+Defining using function without using import and return with format of a/b
+Examples </p>
+
+<blockquote>
+  <p>fraction(9,24)
+      result = > 3/8</p>
+</blockquote>
+
+<p>I'm not really good at English so I don't really know what fraction really is.
+My school only taught in my country's language.</p>
+
+<pre><code>def fraction(a,b):
+    return a ? b ?
+fraction(9,24)
+</code></pre>
+","def prime_factors(n):
+    i = 2
+    factors = []
+    while i * i &lt;= n:
+        if n % i:
+            i += 1
+        else:
+            n //= i
+            factors.append(i)
+    if n &gt; 1:
+        factors.append(n)
+    return factors
+
+def factorise(a,b):
+    a_list = prime_factors(a)
+    a1_list = a_list
+    b_list = prime_factors(b)
+    b1_list = b_list
+    for x in a_list:
+        if x in b1_list: 
+            b1_list.remove(x) 
+            a1_list.remove(x)
+    for x in b_list:
+        if x in a1_list: 
+            a1_list.remove(x)
+            b1_list.remove(x) 
+    a_ret = 1
+    b_ret = 1
+    for x in a1_list:
+        a_ret *= x
+    for x in b1_list:
+        b_ret *= x
+    print(a_ret,b_ret)
+",<python><fractions>
+51976580,2,Change month name to date in python,"<p>I am trying to change month name to date in python but i m getting an error:</p>
+
+<pre><code>ValueError: time data 'October' does not match format '%m/%d/%Y'
+</code></pre>
+
+<p>My CSV has values such as October in it which I want to change it to 10/01/2018</p>
+
+<pre><code>import pandas as pd
+import datetime
+
+f = pd.read_excel('test.xlsx', 'Sheet1', index_col=None)
+keep_col = ['Month']
+new_f = f[keep_col]
+f['Month'] = f['Month'].apply(lambda v: datetime.datetime.strptime(v, '%m/%d/%Y'))
+    new_f.to_csv(""output.csv"", index=False)
+</code></pre>
+
+<p>Any help would be appreciated</p>
+","def convert_monthname(monthname):
+    table = {""January"": datetime.datetime(month=1, day=1, year=2018),
+             ""February"": datetime.datetime(month=2, day=1, year=2018),
+             ...}
+
+    return table.get(monthname, monthname)
+
+f['Month'] = f['Month'].apply(convert_monthname)
+",<python>
+43623304,2,Python: Iterate through list and remove duplicates (without using Set()),"<p>So I have a list:</p>
+
+<pre><code>s = ['cat','dog','cat','mouse','dog']
+</code></pre>
+
+<p>And I want to be able to iterate through the list and remove the duplicates, WITHOUT using the set() function! So for example it should remove 'cat' and position s[2] BUT keep 'cat' at position s[0]. It then needs to do the same thing for 'dog', ie. keep 'dog' at position s[1] but remove 'dog' from position s[4].</p>
+
+<p>So the output is then:</p>
+
+<pre><code>s = ['cat','dog','mouse']
+</code></pre>
+
+<p>I have tried to use i and j as index positions in the list, and check whether the element at position i is equal to the element at position j. If so, it will remove it and increment the value of j by 1, if not then it will leave it and just increment the value of j. After the whole list has been iterated through, it will increment the value of i and then check the whole list again, for the new element. Below:</p>
+
+<pre><code>i = 0
+j = 1
+for a in range(len(s)):
+    for b in range(len(s)):
+        if s[i] == s[j]:
+            s.remove(s[j])
+            j = j + 1
+        else:
+            j = j + 1
+    i = i + 1
+</code></pre>
+
+<p>What am I doing wrong here?</p>
+","def remove_dup(a):
+   i = 0
+   while i &lt; len(a):
+      j = i + 1
+      while j &lt; len(a):
+         if a[i] == a[j]:
+            del a[j]
+         else:
+            j += 1
+      i += 1
+
+s = ['cat','dog','cat','mouse','dog']
+remove_dup(s)
+print(s)
+
+Output: ['cat', 'dog', 'mouse']
+",<python><list>
+53733449,2,How to count the occurence and number of duplicates in a list?,"<p>I am trying to count the duplicate characters of strings in a list; additionally I increment a variable depending on whether it is a duplicate 2 or 3 times.</p>
+
+<p>However, out of my 250 string test list, it is returning a total count of 641, so I'm sure something's wrong.</p>
+
+<p>Here is my code:</p>
+
+<pre><code>def findDupesNum(listy):
+    a = []      # the current string's character list
+    b = 0       # the 2-dupe counter
+    c = 0       # the 3-dupe counter
+    for i in listy:
+        a.clear()
+        for x in i:
+            if x in a and a.count(x) == 1 and x != '':
+                b += 1
+            elif x in a and a.count(x) == 2 and x != '':
+                c += 1
+                b -= 1
+            a.append(x)
+        print('b = ' + str(b) + ' and c = ' + str(c))
+</code></pre>
+","def findDupesNum(listy):
+    for i in listy:
+        counts = {}
+        for x in i:
+        if x:
+            counts[x] = counts.get(x, 0) + 1
+        doubles = 0
+        triples = 0
+        for i in counts:
+            if counts[i] == 2:
+                doubles = doubles + 1
+            elif counts[i] == 3:
+                triples = triples + 1
+
+        print('{} doubles and {} triples'.format(doubles, triples))
+",<python>
+44146075,2,Iterate through a list inside a dictionary in python,"<p>I'm very new to Python and I need to create a function that divides by 2 the values in the lists inside the dictionary:</p>
+
+<pre><code>dic = {""A"":[2,4,6,8], ""B"":[4,6,8,10]}
+</code></pre>
+
+<p>desired output:</p>
+
+<pre><code>dic2 = {""A"":[1,2,3,4], ""B"":[2,3,4,5]}
+</code></pre>
+
+<p>I found this post</p>
+
+<p><a href=""https://stackoverflow.com/questions/18289678/python-iterating-through-a-dictionary-with-list-values"">python: iterating through a dictionary with list values</a></p>
+
+<p>which helped a little, but unfortunately is the ""whatever"" part of the example code that I can't figure out.</p>
+
+<p>I tried this:</p>
+
+<pre><code>def divide(dic):
+    dic2 = {}
+    for i in range(len(dic)):
+        for j in range(len(dic[i])):
+            dic2[i][j] = dic[i][j]/2
+    return dic2
+</code></pre>
+
+<p>I wrote different variations, but I keep getting a KeyError: 0 in the ""for j..."" line. </p>
+","def divide_dic(dic):
+    dic2 = {}
+
+    # Iterate through the dictionary based on keys.
+    for dic_iter in dic:
+
+        # Create a copy of the dictionary list divided by 2.
+        list_values = [ (x / 2) for x in  dic[dic_iter] ]
+
+        # Add the dictionary entry to the new dictionary.
+        dic2.update( {dic_iter : list_values} )
+
+    return dic2
+",<python><dictionary>
+43760486,2,Python: searching for a string on a file,"<p>I'm trying to search for today's date (2017-05-03) on a file populated with several dates. If the date is found on the file, then it returns true and continues the script, if not it ends the execution.</p>
+
+<p>Here's my sample <code>days.txt</code> file:</p>
+
+<pre><code>2017-05-01
+2017-05-03
+2017-04-03
+</code></pre>
+
+<p>This is my script:</p>
+
+<pre><code># Function to search the file
+def search_string(filename, searchString):
+    with open(filename, 'r') as f:
+        for line in f:
+            return searchString in line
+
+# Getting today's date and formatting as Y-m-d
+today = str(datetime.datetime.now().strftime(""%Y-%m-%d""))
+
+# Searching the script for the date
+if search_string('days.txt', today):
+    print ""Found the date. Continue script""
+else:
+    print ""Didn't find the date, end execution""
+</code></pre>
+
+<p>However it always returns False, even if the date is present on my txt file. I don't know what I'm doing wrong.</p>
+","def search_string(filename, searchString):
+    with open(filename, 'r') as f:
+        for line in f:
+            if searchString in line:
+                return True
+    return False
+",<python><search>
+50436480,2,Visiting All Nodes and Adding Them to Path,"<p>I'm trying to visit all nodes, get back to start node(<code>Neamt</code>) and add visited nodes to <code>path</code> but problem is If I reach dead end, city deleted from the <code>path</code>.</p>
+
+<p><a href=""https://i.stack.imgur.com/yP7P8.png"" rel=""nofollow noreferrer""><img src=""https://i.stack.imgur.com/yP7P8.png"" alt=""enter image description here""></a></p>
+
+<p>Here is the 1 of the possible <code>path</code> that code produces:</p>
+
+<p><code>['Neamt', 'Iasi', 'Vaslui', 'Urziceni', 'Bucharest', 'Fagaras', 'Sibiu', 'Oradea', 'Zerind', 'Arad', 'Timisoara', 'Lugoj', 'Mehadia', 'Drobeta', 'Craiova', 'Pitesti', 'Rimnicu Vileea']</code></p>
+
+<p>As shown in above <code>path</code>, there are no <code>'Hirsova', 'Eforie', 'Giurgiu'</code>.
+What really happen is while I debug on PyCharm: <code>'Hirsova', 'Eforie', 'Giurgiu'</code> are added to <code>path</code> but then they are deleted from <code>path</code>.</p>
+
+<p><strong>I want to include those cities to <code>path</code> as reversed order.</strong> Such as:</p>
+
+<p><code>['Neamt', 'Iasi', 'Vaslui', 'Urziceni', 'Hirsova', 'Eforie', 'Hirsova', 'Urziceni', 'Bucharest', 'Giurgiu', 'Bucharest', 'Pitesti', 'Rimnicu Vileea', 'Craiova', 'Drobeta', 'Mehadia', 'Lugoj', 'Timisoara', 'Arad', 'Zerind', 'Oradea', 'Sibiu', 'Fagaras', 'Bucharest', 'Urziceni', 'Vaslui', 'Iasi', 'Neamt',]</code></p>
+
+<p><em>Why they are deleted from <code>path</code> since there is no any opposite of <code>.append</code> method like <code>.delete</code>?</em></p>
+
+<pre><code>def find_paths(node, cities, path, distance):
+    # Add way point
+    path.append(node)
+    #print('path:', path)
+
+# Fork paths for all possible cities not yet used
+    for city in cities:
+        if (city not in path) and (node in cities[city]):
+            find_paths(city, dict(cities), list(path), distance)
+#What has to be:
+count = 0 # avoid adding end paths twice
+    for city in cities[node].keys(): # only recurse on children not the whole list
+        if city not in visited: 
+            count += 1
+            find_paths(city, cities, path, distance, visited)
+    if count &gt; 0 : # only add again if there were children
+        path.append(node)
+#////////////
+
+if __name__ == '__main__':
+    cities = {
+    'Arad': {'Sibiu': 140, 'Timisoara': 118, 'Zerind': 75},
+    'Hirsova': {'Eforie': 86, 'Urziceni': 98},
+    'Bucharest': {'Fagaras': 211, 'Giurgiu': 90, 'Pitesti': 101, 'Urziceni': 85},
+    'Craiova': {'Drobeta': 120, 'Pitesti': 138, 'Rimnicu Vileea': 146},
+    'Drobeta': {'Craiova': 120, 'Mehadia': 75},
+    'Eforie': {'Hirsova': 86},
+    'Fagaras': {'Bucharest': 211, 'Sibiu': 99},
+    'Giurgiu': {'Bucharest': 90},
+    'Iasi': {'Neamt': 87, 'Vaslui': 92},
+    'Lugoj': {'Mehadia': 70, 'Timisoara': 111},
+    'Mehadia': {'Drobeta': 75, 'Lugoj': 70},
+    'Neamt': {'Iasi': 87},
+    'Oradea': {'Sibiu': 151, 'Zerind': 71},
+    'Pitesti': {'Bucharest': 101, 'Craiova': 138, 'Rimnicu Vileea': 97},
+    'Rimnicu Vileea': {'Craiova': 146, 'Pitesti': 97, 'Sibiu': 80},
+    'Sibiu': {'Arad': 140, 'Fagaras': 99, 'Oradea': 151, 'Rimnicu Vileea': 80},
+    'Timisoara': {'Arad': 118, 'Lugoj': 111},
+    'Urziceni': {'Bucharest': 85, 'Hirsova': 98, 'Vaslui': 142},
+    'Vaslui': {'Iasi': 92, 'Urziceni': 142},
+    'Zerind': {'Arad': 75, 'Oradea': 71}
+    }
+
+    #print(""Start: Neamt"")
+    find_paths('Neamt', cities, [], 0)
+</code></pre>
+","def find_paths(node, cities, path, distance, visited = set()):
+
+    visited.add(node) # keep track of visited nodes
+    path.append(node)
+
+    # Fork paths for all possible cities not yet used
+    count = 0 # avoid adding end paths twice
+    for city in cities[node].keys(): # only recurse on children not the whole list
+        if city not in visited: 
+            count += 1
+            find_paths(city, cities, path, distance, visited)
+    if count &gt; 0 : # only add again if there were children
+        path.append(node)
+
+a = []
+find_paths('Neamt', cities, a, 0)
+print(a)
+",<python><algorithm><graph-algorithm>
+41414525,2,wait function that uses while,"<p>I just wrote a function that looked like this:</p>
+
+<pre><code>def block_for(seconds):
+    """"""Wait at least seconds, this function should not be affected by the computer sleeping.""""""
+    end_time = datetime.datetime.now() + datetime.timedelta(seconds)
+
+    while datetime.datetime.now() &lt; end_time:
+        pass
+</code></pre>
+
+<p>Can anything bad come of this? Should there ideally be something inside the while loop?</p>
+","def block_for(seconds):
+    """"""Wait at least seconds, this function should not be affected by the computer sleeping.""""""
+    end_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
+
+    while datetime.datetime.now() &lt; end_time - datetime.timedelta(seconds=1):
+        time.sleep(1)
+
+    while datetime.datetime.now() &lt; end_time:
+        pass
+",<python><python-2.x>
+47396022,2,python printing from dictionary,"<p>I'm trying to write code that will collect the number of individuals attending an event. Based on the number of people entered, I will ask that many times a) the name of the individual, b) the number of toys they have donated.  I want the information to be entered into a dictionary which i will pass to another function.  The second function will select individuals who have donated more than 20 toys and print their name and the number of toys the donated as ""level 1"" and then everyone else as ""level 2"".</p>
+
+<p>I've checked to make sure that the data is being passed from one function to another correctly.  I'm having issues printing the donation amount without the [].  Also, it keeps printing the level above each entry instead of listing the entries underneath the level. In other words, I'm trying to get:</p>
+
+<blockquote>
+  <p>Level 1<br>
+  Selena Gomez 50<br>
+  Beyonce 40</p>
+  
+  <p>Level 2<br>
+  Will Smith 5</p>
+</blockquote>
+
+<p>What am I doing wrong?</p>
+
+<p>Here is my code:</p>
+
+<pre><code>def data():
+    people = int(input(""How many individuals are attending? ""))
+    attendees = {}
+    for i in range(people):
+        name = str(input('Please enter name: '))
+        amount = int(input('Number of toys donated:'))
+        attendees[name]= [amount]
+
+    return attendees
+
+
+
+
+def print_data():
+    attendees = data()
+
+    for i in attendees:
+        if attendees[i][0] &gt; 20:
+            print('Level 1')
+            print(i, attendees[i])
+
+        else:    
+            print('Level 2')
+            print(i, attendees[i])
+
+print_data()
+</code></pre>
+
+<p>And here is my output:</p>
+
+<blockquote>
+  <p>How many individuals are attending? 3</p>
+  
+  <p>Please enter name: Will Smith</p>
+  
+  <p>Number of toys donated:5</p>
+  
+  <p>Please enter name: Selena Gomez</p>
+  
+  <p>Number of toys donated:50</p>
+  
+  <p>Please enter name: Beyonce</p>
+  
+  <p>Number of toys donated:40  </p>
+  
+  <p>Level 2<br>
+  Will Smith [5]</p>
+  
+  <p>Level 1<br>
+  Selena Gomez [50]</p>
+  
+  <p>Level 1<br>
+  Beyonce [40]</p>
+</blockquote>
+","def data():
+    people = int(input(""How many individuals are attending? ""))
+    attendees1 = {}
+    attendees2 = {}
+    for i in range(people):
+        name = str(input('Please enter name: '))
+        amount = int(input('Number of toys donated:'))
+        #amount should be just a variable not list
+        if amount &gt; 20:
+            attendees1[name]= amount
+        else:
+            attendees2[name] = amount
+
+    return attendees1, attendees2
+
+
+
+
+def print_data():
+    attendees1, attendees2 = data()
+
+
+    if len(attendees1) &gt; 0:
+        print('Level 1')
+        for i in attendees1:
+            print(i, attendees1[i])
+
+    if len(attendees2) &gt; 0:
+        print('Level 2')
+        for i in attendees2:
+            print(i, attendees2[i])
+
+print_data()
+",<python><dictionary>
+46596068,2,How can I use for loops to replace multiple characters in a string?,"<p>I already asked a question exactly like this, but the answer I got still worked and it used the .translate method within the function, but I want to use ""for loops"" to get the output I am looking for. Here is the link to the questions I asked a while ago: <a href=""https://stackoverflow.com/questions/46535603/how-can-i-replace-multiple-characters-in-a-string-using-python"">How can I replace multiple characters in a string using python?</a> </p>
+
+<p>I am having some trouble figuring out how to replace multiple characters in a string using a for loop. I am trying to write a functions called replace(string) that takes in an input, and replaces certain letters in the input with another letter.</p>
+
+<p>Lets say I have the string ""WXYZ"" and I want to replace all the W with Y, X with Z, Y with W, and Z with X. I want it to do the replacement no matter what the input is. So if I also do something like replace(""WWZXWWXYYZWYYY"") it should replace the letters like I said above.</p>
+
+<p>This is what I have done so far with the for loops: </p>
+
+<pre><code>def replace(string):
+for letters in string:
+    string = string.replace(""W"",""Y"").replace(""X"",""Z"").replace(""Y"",""W"").replace(""Z"",""X"")
+print(string)
+</code></pre>
+
+<p>but when I run it with replace(""WXYZ"")</p>
+
+<p>I get the output of the code as: WXWX</p>
+
+<p>Instead of getting YZWX as the output. I also want to use the built in functions of python as well.</p>
+
+<p>How can I achieve this?</p>
+","def replacer(string): #define the function with a parameter (which will be whatever string you want)
+    newlist = [] #create a new list which will be the output
+    strlist = list(string) #create a list of each character in the input string
+    for item in strlist: #iterate through the items in the list of string characters
+        if item == 'W': # this line and the next 7 lines check what the letter is and writes the letter you want to the new list
+            newlist.append('Y')
+        elif item == 'X':
+            newlist.append('Z')
+        elif item == 'Y':
+            newlist.append('W') 
+        elif item == 'Z':
+            newlist.append('X')
+    return ''.join(newlist) #output the new list as a string
+
+replacer('WWZXWWXYYZWYYY') #call the function with the string as a parameter
+",<python><python-3.x>
+47364340,2,how can i combine all the values of an item in other list using dictionaries in python?,"<p>i have two lists and need to combine the into one dictionary that the key are the letters and the values are the value in the other list.
+for example:</p>
+
+<pre><code>map_keys_to_values_list([""a"", ""b"", ""a""], [15, 3, 6])
+</code></pre>
+
+<p>wll give me :</p>
+
+<pre><code>{'a': [15, 6], 'b': [3]}
+</code></pre>
+
+<p>i tried: </p>
+
+<pre><code>def keys_to_values_list(k_lst, v_lst):
+    lst = []
+    for i in range(len(k_lst)):
+        v=[]
+        #v.append(v_lst[i])
+        t = (k_lst[i],v)
+        lst.append(t)
+    my_dict = dict(lst)
+    for k in my_dict.keys():
+        val = my_dict.get(k)
+        for m in range(len(k_lst)):
+            val.append(v_lst[m])
+
+
+    return my_dict
+</code></pre>
+
+<p>but i get all the values in my value list</p>
+","def keys_to_values_list(keys, values):
+    d = dict()
+    for i in range(len(keys)):
+        if keys[i] in d:
+            d[keys[i]].append(values[i])
+        else:
+            d[keys[i]] = [values[i]]
+    return d
+",<python><dictionary>
+52525252,1,Returning even and odd numbers in Python,"<p>I am having a little trouble answering a python quiz that asks:</p>
+
+<p>Given two numbers X and Y, write a function that:
+returns even numbers between X and Y, if X is greater than Y else it returns odd numbers between x and y</p>
+
+<p>For instance, take the integers 10 and 2 . the function would return all the even numbers between 2 and 10.</p>
+
+<p>I would really appreciate some help since I'm still a newbie</p>
+
+<p>Here is my code:</p>
+
+<pre><code>def number_game(x,y):
+  num = range(x,y)
+  for e in num:
+    if x &gt; y:
+      return e%2 == 0
+    else:
+      return e%3 == 0
+</code></pre>
+
+<p>Here are the test cases:</p>
+
+<pre><code>test.assert_equals(number_game(2,12), [3, 5, 7, 9, 11])
+test.assert_equals(number_game(0,0), [])
+test.assert_equals(number_game(2,12), [3, 5, 7, 9, 11])
+test.assert_equals(number_game(200,180), [180, 182, 184, 186, 188, 190, 192, 194, 196, 198])
+test.assert_equals(number_game(180,200), [181, 183, 185, 187, 189, 191, 193, 195, 197, 199])
+</code></pre>
+","def number_game(x,y):
+    if x &gt; y:
+        return [n for n in range(y,x) if n%2==0]
+    elif y==x:
+        return []
+    else:
+        return [n for n in range(x,y) if n%2!=0]
+",<python><python-3.x>
+44336131,1,Read Excel file and write the data to a dictionary,"<p>I have a Excel file with two columns like the following:</p>
+
+<pre class=""lang-none prettyprint-override""><code>Reviews| Numbers
+text1 | 1,3
+text2 | 2
+text3 | 1
+text4 | 2
+text5 | 1
+</code></pre>
+
+<p>I am reading the data as follows:</p>
+
+<pre><code>def read_xls(filename):
+    book = xlrd.open_workbook(filename)
+    sheet = book.sheet_by_index(0)
+    data=[]
+    for row_index in xrange(1, sheet.nrows): # skip heading row
+        reviews, numbers = sheet.row_values(row_index, end_colx=2)
+        data.append(reviews)
+</code></pre>
+
+<p>But instead of getting the columns as  separate lists, I want the result in a dictionary as follows:</p>
+
+<pre><code>{1: [text1, text3, text5], 2: [text2, text4], 3: [text1]}
+</code></pre>
+
+<p>How do I do that?</p>
+","def read_xls(filename):
+    book = xlrd.open_workbook(filename)
+    sheet = book.sheet_by_index(0)
+    data = {}
+    for row_index in xrange(1, sheet.nrows): # skip heading row
+        reviews, numbers = sheet.row_values(row_index, end_colx=2)
+        number_list = numbers.split("","")
+        for number in number_list: 
+            if number not in data:
+                data[number] = []
+            data[number].append(reviews)
+",<python><list><dictionary><xlrd>
+49883623,1,Implementing for loop in an if statement,"<p>Am trying to solve project euler question :</p>
+
+<blockquote>
+  <p>2520 is the smallest number that can be divided by each of the numbers
+  from 1 to 10 without any remainder. What is the smallest positive
+  number that is evenly divisible by all of the numbers from 1 to 20?</p>
+</blockquote>
+
+<p>I've come up with the python solution below, but is there any way to loop the number in the <code>if</code> instead of having to write all of them.</p>
+
+<pre><code>def smallest_m():
+    start=1
+    while True:
+        if start%2==0 and start%3==0 and start%4==0 and start%5==0 and start%5==0 and start%6==0 and start%7==0 and start%8==0 and start%9==0 and start%10==0 and start%11==0 and start%12==0 and start%13==0 and start%14==0 and start%15==0 and start%16==0 and start%17==0 and start%18==0 and start%19==0 and start%20==0:
+            print(start)
+            break
+        else:
+            start+=1
+
+smallest_m()
+</code></pre>
+","def smallest_m():
+    start = 1
+    while True:
+        if all(start % i == 0 for i in range(2, 20+1)):
+            print(start)
+            break
+        else:
+            start+=1
+
+smallest_m()
+",<python><algorithm><range>
+45094611,1,How to count in recursive function?,"<p>The code below is quicksort in Python.
+How do I count how many times comparison operates in the algorithm?</p>
+
+<p>Although I assign <code>count = 0</code> at first, it is reset to 0 because of recursion.</p>
+
+<pre><code>def QuickSort(lst):
+    if len(lst) &gt; 1:
+        pivot_idx = len(lst) // 2
+        smaller_nums, larger_nums = [], []
+
+        for idx, num in enumerate(lst):
+            if idx != pivot_idx:
+                if num &lt; lst[pivot_idx]:
+                    smaller_nums.append(num)
+
+                else:
+                    larger_nums.append(num)
+
+        QuickSort(smaller_nums)
+        QuickSort(larger_nums)
+        lst[:] = smaller_nums + [lst[pivot_idx]] + larger_nums
+
+    return lst
+</code></pre>
+","def QuickSort(lst, count=0):
+    if len(lst) &gt; 1:
+        pivot_idx = len(lst) // 2
+        smaller_nums, larger_nums = [], []
+
+        for idx, num in enumerate(lst):
+            if idx != pivot_idx:
+                if num &lt; lst[pivot_idx]:
+                    smaller_nums.append(num)
+
+                else:
+                    larger_nums.append(num)
+
+        count = QuickSort(smaller_nums, count+1)[1]
+        count = QuickSort(larger_nums, count+1)[1]
+        lst[:] = smaller_nums + [lst[pivot_idx]] + larger_nums
+
+
+    return (lst,count)
+",<python-3.x>
+52335680,1,Better way to replace items in a list / dataframe,"<p>I have to manually correct some data that may be misleading for a model otherwise.</p>
+
+<p>the logic is : </p>
+
+<pre><code>    if col(""a"") not empty &amp; col(""b"") negative 
+    =&gt; create col(""ret_a"") = 2*min(col(""a"")) - col(""a"")
+    else col(""ret_a"") = col(""a"")
+</code></pre>
+
+<p>The code i'm using and which does the job (but is not pretty) is :</p>
+
+<pre><code># a
+df[""ret_a""] = np.where(
+    np.logical_and(pd.notnull(df[""a""]), df[""b""] &lt; 0),
+    2*df[""a""].min()- df[""a""],
+    df[""a""])
+</code></pre>
+
+<p>The issue is that i have a bunch of conditions... and I don't think a condition like ""&lt;0"" can be stored in a dict{} to use pd.map() </p>
+
+<p>I then tried to build something using :</p>
+
+<pre><code>df['i'] = np.select(conditions, choices,)
+</code></pre>
+
+<p>with 'i' 'conditions' and 'choices':</p>
+
+<pre><code>i= [
+    'RETURN_COM_EQY_',                     # a
+    'INTEREST_COVERAGE_RATIO_',            # b
+    'TOT_DEBT_TO_TOT_CAP_',                # c
+    'TOT_DEBT_TO_TOT_EQY_',                # d
+    'NET_DEBT_TO_EBITDA_',                 # e
+    'NET_INTEREST_COVERAGE_']              # f
+
+conditions = [
+    (df['TOTAL_EQUITY_'] &lt; 0),            # a
+    (df['IS_INT_EXPENSE_'] &lt; 0),          # b
+    (df['NET_DEBT_'] &lt; 0),                # c
+    (df['NET_DEBT_'] &lt; 0),                # d
+    (df['NET_DEBT_'] &lt; 0),                # e1
+    (df['EBIT_'] &lt; 0),                    # e2
+    (df['IS_INT_EXPENSE_'] &lt; 0)]          # f
+
+choices = [
+    2*df[""RETURN_COM_EQY_""].min() - df[""RETURN_COM_EQY_""],                         # a
+    2*df[""INTEREST_COVERAGE_RATIO_""].min() - df[""INTEREST_COVERAGE_RATIO_""],       # b
+    2*df[""TOT_DEBT_TO_TOT_CAP_""].max() - df[""TOT_DEBT_TO_TOT_CAP_""],               # c
+    2*df[""TOT_DEBT_TO_TOT_EQY_""].max() - df[""TOT_DEBT_TO_TOT_EQY_""],               # d
+    2*df[""NET_DEBT_TO_EBITDA_""].max() - df[""NET_DEBT_TO_EBITDA_""],                 # e1
+    2*df[""NET_DEBT_TO_EBITDA_""].min() - df[""NET_DEBT_TO_EBITDA_""],                 # e2
+    2*df[""NET_INTEREST_COVERAGE_""].min() - df[""NET_INTEREST_COVERAGE_""],           # f
+    ]
+</code></pre>
+
+<p>the complete code for that operation would be :</p>
+
+<pre><code>    # a
+df[""ret_mean_RETURN_COM_EQY_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_RETURN_COM_EQY_""]),
+                   df[""mean_TOTAL_EQUITY_""] &lt; 0),
+    2*df[""mean_RETURN_COM_EQY_""].min() 
+    - df[""mean_RETURN_COM_EQY_""],
+                   df[""mean_RETURN_COM_EQY_""])
+
+# b
+df[""ret_mean_INTEREST_COVERAGE_RATIO_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_INTEREST_COVERAGE_RATIO_""]),
+                   df[""mean_IS_INT_EXPENSE_""] &lt; 0),
+    2*df[""mean_INTEREST_COVERAGE_RATIO_""].min() 
+    - df[""mean_INTEREST_COVERAGE_RATIO_""],
+                   df[""mean_INTEREST_COVERAGE_RATIO_""])
+# c
+df[""ret_mean_TOT_DEBT_TO_TOT_CAP_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_TOT_DEBT_TO_TOT_CAP_""]),
+                   df[""mean_NET_DEBT_""] &lt; 0),
+    2*df[""mean_TOT_DEBT_TO_TOT_CAP_""].max()
+    - df[""mean_TOT_DEBT_TO_TOT_CAP_""],
+                   df[""mean_TOT_DEBT_TO_TOT_CAP_""])
+
+# d
+df[""ret_mean_TOT_DEBT_TO_TOT_EQY_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_TOT_DEBT_TO_TOT_EQY_""]),
+                   df[""mean_NET_DEBT_""] &lt; 0),
+    2*df[""mean_TOT_DEBT_TO_TOT_EQY_""].max()
+    - df[""mean_TOT_DEBT_TO_TOT_EQY_""],
+                   df[""mean_TOT_DEBT_TO_TOT_EQY_""])
+
+# e1
+df[""ret_mean_NET_DEBT_TO_EBITDA_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_NET_DEBT_TO_EBITDA_""]),
+                   df[""mean_NET_DEBT_""] &lt; 0),
+    2*df[""mean_NET_DEBT_TO_EBITDA_""].max()
+    - df[""mean_NET_DEBT_TO_EBITDA_""],
+                   df[""mean_NET_DEBT_TO_EBITDA_""])
+
+# e2
+df[""ret_mean_NET_DEBT_TO_EBITDA_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_NET_DEBT_TO_EBITDA_""]),
+                   df[""mean_EBIT_""] &lt; 0),
+    2*df[""mean_NET_DEBT_TO_EBITDA_""].min()
+    - df[""mean_NET_DEBT_TO_EBITDA_""],
+                   df[""ret_mean_NET_DEBT_TO_EBITDA_""]) # different here
+
+# f
+df[""ret_mean_NET_INTEREST_COVERAGE_""] = np.where(
+    np.logical_and(pd.notnull(df[""mean_NET_INTEREST_COVERAGE_""]),
+                   df[""mean_IS_INT_EXPENSE_""] &lt; 0),
+    2*df[""mean_NET_INTEREST_COVERAGE_""].min()
+    - df[""mean_NET_INTEREST_COVERAGE_""],
+                   df[""mean_NET_INTEREST_COVERAGE_""])
+</code></pre>
+","def func(df, i_n, condition, choice):
+   name = ""ret_"" + i_n
+   df[name] = df[i_n]
+   df.loc[(pd.notnull(df[i_n])) &amp; (condition), name] = choice
+
+for i_n, condition, choice in zip(i, conditions, choices):
+   func(df, i_n, condition, choice)
+",<python><pandas><numpy><list-comprehension>
+51714546,1,Recursively splitting list in half to find product of all numbers,"<p>I'm currently trying to write a recursive function which takes in two integer parameters, and must take all the values from the first to the last integer, continuously split the list in half in order to multiply each side and find the product of all the integer values. I currently have the following code typed out:</p>
+
+<pre><code>def multiply(n, m):
+
+    lis = range(n, m)
+    half = len(lis)//2
+    leftSide = lis[:half]
+    rightSide = lis[half+1:]
+    if n == 0 or m == 0:
+        return 0
+    elif len(lis) == 0:
+        return 0
+    elif len(lis) == 1:
+        return lis[0]
+    return multiply(leftSide) * multiply(rightSide)
+</code></pre>
+
+<p>But when I run the code I get the following error:</p>
+
+<blockquote>
+  <p>TypeError: multiply() missing 1 required positional argument: 'm'</p>
+</blockquote>
+
+<p>Any input or help of any kind would be greatly appreciated.</p>
+","def multiply(lo, hi):
+    if lo == hi:
+        return lo
+    else:
+        mid = (lo + hi) // 2
+        return multiply(lo, mid) * multiply(mid + 1, hi)
+
+product = multiply(1, 4) # 1 * 2 * 3 * 4
+print(product) # 24
+",<python><python-3.x>
+43472683,1,count characters in a word in text file python and write those characters into a csv file,"<p>i have a text file test.txt with words as apple,ant,dog,cat,son etc. I want python to calculate the total number of characters for all words in text file</p>
+
+<pre><code>Eg:
+Word Letters
+Ant   3
+Apple 5
+Dog   3
+Cat   3
+Son   3
+</code></pre>
+
+<p>This is what I have tried:</p>
+
+<pre><code>string = open('file.txt').read()
+
+for word in string.split():
+    print len(word)
+</code></pre>
+","def main():
+string = open('Newfile.txt').read()
+for word in string.split():
+    print (""{} {}"".format(word, len(word)))
+main()
+",<string><python-2.7>
+53893940,1,How to add the string to Key of the dictionary in Python?,"<p>I have multiple set of dictionary. I have to add Key of ID and UD if ID is 1 or 2. I have downloaded from the mysql table and converted to JSON. Now I need some help for processing.</p>
+
+<pre><code>{""Rank"": ""37"",ID = ""1"", UD= 'a'}
+{""Rank"": ""38"",ID = ""2"", UD= 'b'}
+{""Rank"": ""8"",ID = ""33"", UD= 'a'}
+</code></pre>
+
+<p>Expected out</p>
+
+<pre><code>{""Rank"": ""37"",ID = ""1a"", UD= 'a'}
+{""Rank"": ""38"",ID = ""2b"", UD= 'b'}
+{""Rank"": ""8"",ID = ""33"", UD= 'a'}
+</code></pre>
+","def parse_data(input_dict):
+    for data in input_dict:
+        if data['ID'] in [""1"", ""2""]:
+            data['ID'] = data['ID'] + data['UD']
+
+data = [
+    {""Rank"": ""37"", ""ID"": ""1"", ""UD"":'a'},
+    {""Rank"": ""38"", ""ID"": ""2"", ""UD"": 'b'},
+    {""Rank"": ""8"", ""ID"": ""33"", ""UD"": 'a'}
+]
+parse_data(data)
+print data
+",<python><dictionary>
+41414676,1,How to check if contents of two lists is same in python?,"<p>I have 3 lists :</p>
+
+<ol>
+<li><code>list_1 = [1,2]</code></li>
+<li><code>list_2 = [2,1]</code></li>
+<li><code>list_3 = [1,2,3]</code></li>
+</ol>
+
+<blockquote>
+  <p>Note: numbers inside [] are the ids from Django Model</p>
+</blockquote>
+
+<p>I want to test whether the contents (but not necessarily the order) of two lists are exactly the same. With reference to the 3 examples above: </p>
+
+<p>Comparing <strong>list_1</strong> and <strong>list_2</strong><br>
+should return <strong><em>True</em></strong>, </p>
+
+<p>but if I do validation between <strong>list_2</strong> and <strong>list_3</strong>, or between <strong>list_1</strong> and <strong>list_3</strong>,<br>
+then the result should be <strong><em>False</em></strong>.</p>
+
+<p>How do I achieve this?</p>
+
+<p>Thanks :D</p>
+","def validation(list_1,list_2):
+    return sorted(list_1) == sorted(list_2)
+",<python><django><list>
+53939198,1,Python 3 how to detect and replace neighbors in array,"<p>I have a nested lists. Example:</p>
+
+<pre><code>list=[[1,1,1,3,3,1,1],
+      [2,1,1,2,1,1,2],
+      [3,0,1,1,1,1,3],
+      [1,7,1,8,1,0,1]]
+</code></pre>
+
+<p>I want to identify and change the same neighbors(left,right,top,bottom) at the point I choose in this list. Without using numpy or other packages.</p>
+
+<pre><code>def findNeighbors(list, x, y):
+    if 0 &lt; x &lt; len(list) - 1:
+        xi = (0, -1, 1)
+    elif x &gt; 0:
+        xi = (0, -1)
+    else:
+        xi = (0, 1)
+    yi = (0, -1, 1) if 0 &lt; y &lt; len(list[0]) - 1 else ((0, -1) if y &gt; 0 else (0, 1))
+    for a in xi:
+        for b in yi:
+            if a == -1 and b == 0 or a == 0 and b == -1 or a == 0 and b == 1 or a == 1 and b == 0:
+                list[x + a][y + b] = 'a'
+                findNeighbors(list,x+a,y+b)
+                return list
+
+findNeighbors(list, 2, 3)
+
+for i in list:
+    print(i)
+</code></pre>
+
+<p>Starting from line 2 column 3,I want to create the following list:</p>
+
+<pre><code>list= [[a,a,a,3,3,a,a],
+       [2,a,a,2,a,a,2],
+       [3,0,a,a,a,a,3],
+       [1,7,a,8,a,0,1]]
+</code></pre>
+","def findNeighbors(list, x, y):
+    value = list[x][y]
+    list[x][y] = 'a'
+
+    if 0 &lt; x &lt; len(list)-1:
+        xi = (0, -1, 1)
+    elif x &gt; 0:
+        xi = (0, -1)
+    else:
+        xi = (0, 1)
+    yi = (0, -1, 1) if 0 &lt; y &lt; len(list[0]) - 1 else ((0, -1) if y &gt; 0 else (0, 1))
+    for a in xi:
+        for b in yi:
+            if (a == -1 and b == 0) or (a == 0 and b == -1) or (a == 0 and b == 1) or (a == 1 and b == 0):
+                if list[x + a][y + b] == value and list[x+a][y+b] != 'a':
+                    findNeighbors(list,x+a,y+b)
+",<arrays><python-3.x><list><neighbours>
+55348634,1,Python 3 Reading File and counting the lines in the file,"<p>Write a function named ""count_lines"" that takes a string as a parameter representing the name of a file to read and returns the number of lines in the file.</p>
+
+<p>I honestly don't fully understand what needs to be done to complete the task.
+I know that I need the parameter to open the file name stored in the parameter, but not sure how to do it or the for loop to count the lines in the file itself. </p>
+
+<p>Thank you</p>
+","def count_lines(filepath):
+    with open(filepath, 'r+') as file:
+        lines = file.readlines()
+        return len(lines)
+",<python-3.6>
+49050197,1,How to get the first capital letter and then each that isn't followed by another capital letter in Python?,"<p>I am developing a script that creates abbrevations for a list of names that are too long for me to use. I need to split each name into parts divided by dots and then take each capital letter that is at a beginning of a word. Just like this: </p>
+
+<p><strong>InternetGatewayDevice.DeviceInfo.Description</strong> -> <strong>IGD.DI.D</strong></p>
+
+<p>However, if there are more consecutive capital letters (like in the following example), I only want to take the <strong>first</strong> one and then the one that is <strong>not</strong> followed by a capital letter. So, from ""<strong>WANDevice</strong>"" I want get ""<strong>WD</strong>"".  Like this:</p>
+
+<p><strong>InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANIPConnection.1.PortMapping.7.ExternalPort -> IGD.WD1.WCD1.WC1.PM7.EP</strong></p>
+
+<p>So far I have written this script: </p>
+
+<pre><code>data = json.load(open('./cwmp/tr069/test.json'))
+
+def shorten(i):
+    x = i.split(""."")
+    abbreviations = []
+    for each in x:
+        abbrev = ''
+        for each_letter in each:
+            if each_letter.isupper():
+                abbrev = abbrev + each_letter
+        abbreviations.append(abbrev)
+    short_string = ""."".join(abbreviations)
+    return short_string
+
+for i in data[""mappings""][""cwmp_genieacs""][""properties""]:
+    if ""."" in i:
+        shorten(i)
+    else:
+        pass    
+</code></pre>
+
+<p>It works correctly ""translates"" the first example but I am not sure how to do the rest. I think if I had to, I would probably think of <strong>some</strong> way to do it (like maybe split the strings into single characters) but I am looking for an efficient &amp; smart way to do it. I will be grateful for any advice.</p>
+
+<p>I am using Python 3.6.</p>
+
+<p><strong>EDIT:</strong></p>
+
+<p>I decided to try a different approach and iterate over single characters and I pretty easily achieved what I wanted. Nevertheless, thank you for your answers and suggestions, I will most certainly go through them.</p>
+
+<pre><code>def char_by_char(i):
+    abbrev= """"
+    for index, each_char in enumerate(i):
+        # Define previous and next characters 
+        if index == 0:
+            previous_char = None
+        else:
+            previous_char = i[index - 1]
+
+        if index == len(i) - 1:
+            next_char = None
+        else:
+            next_char = i[index + 1]
+        # Character is uppercase
+        if each_char.isupper():
+            if next_char is not None:
+                if next_char.isupper():
+                    if (previous_char is ""."") or (previous_char is None):
+                        abbrev = abbrev + each_char
+                    else:
+                        pass
+                else:
+                    abbrev = abbrev + each_char
+            else:
+                pass
+        # Character is "".""
+        elif each_char is ""."":
+            if next_char.isdigit():
+                pass
+            else:
+                abbrev = abbrev + each_char
+
+        # Character is a digit              
+        elif each_char.isdigit():
+            abbrev = abbrev + each_char
+
+        # Character is lowercase            
+        else:
+            pass
+    print(abbrev)
+
+
+for i in data[""mappings""][""cwmp_genieacs""][""properties""]:
+    if ""."" in i:
+        char_by_char(i)
+    else:
+        pass    
+</code></pre>
+","def shorten(i):
+    abr_list = []
+    abrev = ''
+    parts = i.split('.')
+    for word in parts:
+        for x in range(len(word)):
+            if x == 0 and word[x].isupper() or word[x].isupper() and not word[x + 1].isupper() or word[x].isnumeric():
+                abrev += word[x]
+        abr_list.append(abrev)
+        abrev = ''
+    return join_parts(abr_list)
+
+
+def join_parts(part_list):
+    ret = part_list[0]
+    for part in part_list[1:]:
+        if not part.isnumeric():
+            ret += '.%s' % part
+        else:
+            ret += part
+    return ret
+",<python><python-3.x>
+53380134,1,Use python to solve a math problem: sum up to a value as close as possible,"<p>I have a list of numbers. Now if I set a fixed value V, is it possible for python to divide the list into several groups such that each group's sum is not smaller than V (get those groups as many as possible)? </p>
+
+<p>Ex: if the list is [1,2,3,4,5] and the V is 6, then the result should be [[1,5],[2,3,4]]. Dividing the group means you cannot use the same original item more than once. </p>
+
+<p>There's no limitation on how many items each sublist can contain and also the numbers are not in order (can be some random numbers). Could someone help me out? So far my solution is sum up all the combinations and compare the sums. But I'm pretty sure there should be a more effective solution. Thanks!</p>
+
+<p>My solution: I kinda use this first and do the rest job by my mind, so it doesn't worth a further development. </p>
+
+<pre><code>import itertools
+import math
+
+stuff = list(range(10))
+v = 6
+
+for L in range(0, len(stuff)+1):
+    for subset in itertools.combinations(stuff, L):
+        if math.fsum(subset) &gt; v: 
+            print(subset,math.fsum(subset))
+</code></pre>
+","def get_value_in_dict(d):
+    return d.get(list(d)[0])
+
+# Implementation for a list of dictionaries like [{'apple':1},{'pear':22},{'hat':23},{'glass':44}]
+def sum_up_to_value(stuff, val):
+    new_stuff = []
+    sorted_stuff = list(sorted(stuff, key=lambda el: get_value_in_dict(el)))
+    n = len(stuff)
+    pointer_r = n - 1
+    pointer_l = 0
+    queue = list()
+
+    while pointer_r &gt;= pointer_l:
+        if get_value_in_dict(sorted_stuff[pointer_r]) &gt;= val:
+            new_stuff.append([sorted_stuff[pointer_r]])
+        else:
+            subsum = get_value_in_dict(sorted_stuff[pointer_r])
+            substuff = []
+            while pointer_l &lt; pointer_r and subsum &lt; val:
+                # get from queue
+                while len(queue) and subsum &lt; val:
+                    temp = queue.pop(0)
+                    subsum += get_value_in_dict(temp)
+                    substuff.append(temp)
+                # get from input
+                else:
+                    if subsum &lt; val:
+                        subsum += get_value_in_dict(sorted_stuff[pointer_l])
+                        substuff.append(sorted_stuff[pointer_l])
+                        pointer_l += 1
+            substuff.append(sorted_stuff[pointer_r])
+            # returns back smallest elements
+            while subsum - get_value_in_dict(substuff[0]) &gt;= val:
+                temp = substuff.pop(0)
+                queue.append(temp)
+                subsum -= get_value_in_dict(substuff[0])
+
+            if subsum &lt; val:
+                # add substuff to last element of new_stuff
+                temp = new_stuff.pop()
+                new_stuff.append(temp + substuff)
+            else:
+                new_stuff.append(substuff)
+        pointer_r -= 1
+    return new_stuff  # list(map(lambda el: sorted(el, key=lambda el_d: get_value_in_dict(el_d)), new_stuff)) for sorted by value elements in resulting list
+",<python><list><math><sum>
+49405195,1,Update values inside dictionary of a dictionary,"<p>I have a dictionary that contains the information to make a POST request to site and fetch data.
+Below is my dictionary</p>
+
+<pre><code>request_dict = {
+    ""scope_id"": ""user1"",
+    ""tool_id"": ""appdynamics"",
+    ""api_id"": ""get metrics names"",
+    ""input_params"": {""user"": ""abcd"", ""pwd"": ""1234"", ""acc_id"": ""ab12"", ""app_id"": ""TestApp"", 
+    ""metric-path"": ""ars"", 
+    ""time-range-type"": ""BEFORE_NOW"", ""duration-in-mins"": 10},
+    ""output_filters"": null
+}
+</code></pre>
+
+<p>I have another dictionary which contains the updated value for some of the keys mentioned in the above dictionary.Below is the dictionary</p>
+
+<pre><code>new_metric_dict = {'tool_id': 'appdynamics', 'pwd': '5678', 'user': 'efgh', 'metric-path': 'ars', 'app_id': 'TestApp', 'acc_id': 'cd34'}
+</code></pre>
+
+<p>As you can see I got new values for user, pwd and acc_id.But I am unable to put these values into the POST request dictionary since they are inside <code>input_params</code>.</p>
+
+<p>I tried doing something like this</p>
+
+<pre><code>for i in request_dict:
+    if type(request_dict[i]) == dict:
+        for j in request_dict:
+            if j in new_metric_dict:
+                request_dict[j] = new_metric_dict[j]
+    if i in new_metric_dict:
+        request_dict[i] = new_metric_dict[i]
+</code></pre>
+
+<p>But it doesn't work.What is an efficient way to achieve this?</p>
+","def update_dict(d, new):
+    out = {}
+    for m, val in d.items():
+        if isinstance(d[m], dict):
+            out[m] = {k: new.get(k, d[m][k]) for k, v in d[m].items()}
+        else:
+            out[m] = new.get(m, val)
+    return out
+
+new = update_dict(request_dict, new_metric_dict)
+
+# {'api_id': 'get metrics names',
+#  'input_params': {'acc_id': 'cd34',
+#   'app_id': 'TestApp',
+#   'duration-in-mins': 10,
+#   'metric-path': 'ars',
+#   'pwd': '5678',
+#   'time-range-type': 'BEFORE_NOW',
+#   'user': 'efgh'},
+#  'output_filters': 'null',
+#  'scope_id': 'user1',
+#  'tool_id': 'appdynamics'}
+",<python><python-3.x><dictionary>
+55720454,1,A recursive solution to the number of islands,"<p>I am trying to solve the problem <a href=""https://leetcode.com/problems/number-of-islands/"" rel=""nofollow noreferrer"">Number of Islands - LeetCode</a></p>
+
+<blockquote>
+  <p>Given a 2d grid map of <code>'1'</code>s (land) and <code>'0'</code>s (water), count the number of islands. An island is surrounded by water and is formed by connecting adjacent lands horizontally or vertically. You may assume all four edges of the grid are all surrounded by water.</p>
+  
+  <p><strong>Example 1:</strong></p>
+
+<pre><code>Input:
+11110
+11010
+11000
+00000
+
+Output: 1
+</code></pre>
+  
+  <p><strong>Example 2:</strong></p>
+
+<pre><code>Input:
+11000
+11000
+00100
+00011
+
+Output: 3
+</code></pre>
+</blockquote>
+
+<p>An accepted solution is:</p>
+
+<pre><code>#Recursively solution 
+class Solution:
+    def numIslands(self, grid: List[List[str]]) -&gt; int:
+        if not grid:
+            return 0
+        step = 0
+        r, c = len(grid), len(grid[0])
+        visited = [[False for _ in range(c)] for _ in range(r)]
+        for i in range(r):
+            for j in range(c):
+                if grid[i][j] == ""1"" and not visited[i][j]:
+                    step += 1
+                    self.dfs(grid, i, j, visited)
+        return step
+
+    def dfs(self, grid, i, j, visited):
+        if i&lt;0 or j&lt;0 or i&gt;=len(grid) or j&gt;=len(grid[0]) or grid[i][j] != '1' or visited[i][j]:        
+            return 
+        visited[i][j] = True
+        self.dfs(grid, i+1, j, visited)
+        self.dfs(grid, i-1, j, visited)
+        self.dfs(grid, i, j+1, visited)
+        self.dfs(grid, i, j-1, visited)
+</code></pre>
+
+<p>The solution used a mixture of recursion and iteration.</p>
+
+<p>How could solve the problem solely by recursion?</p>
+","def numIslands(grid, row, col):
+    if not grid: return 0
+
+    ans = 0
+
+    if grid[row][col]==1:
+        ans+=1
+        dfs(grid,row,col)
+
+    col+=1
+    if col == len(grid[0]):
+        col=0
+        row+=1
+
+    if row == len(grid):
+        return ans
+
+    return ans + numIslands(grid, row, col)
+
+def dfs(grid, i, j):
+    if i&lt;0 or j&lt;0 or i&gt;=len(grid) or j&gt;=len(grid[0]) or grid[i][j] != 1:        
+        return 
+    grid[i][j] = -1
+    dfs(grid, i+1, j)
+    dfs(grid, i-1, j)
+    dfs(grid, i, j+1)
+    dfs(grid, i, j-1)
+
+
+print(numIslands([
+[1,1,0,0,0],
+[1,1,0,0,0],
+[0,0,1,0,0],
+[0,0,0,1,1]
+],0,0))
+",<python><algorithm>
+50063292,1,Merge multiple dictionaries when their keys have a list of values Python,"<p>I came across a post that had a complete and correct way of merging two dictionaries, when each dictionary has for each key a list of values. </p>
+
+<p>The input of the program is something like this:</p>
+
+<pre><code>d1:  {'apple': ['5', '65'], 'blue': ['9', '10', '15', '43'], 'candle': ['15'], 'is': ['5', '6', '13', '45', '96'], 'yes': ['1', '2', '3', '11'], 'zone': ['5', '6', '9', '10', '12', '14', '18', '19', '23', '24', '25', '29', '45']}
+d2:  {'apple': ['43', '47'], 'appricote': ['1', '2', '3', '4', '5', '6'], 'candle': ['1', '2', '4', '5', '6', '9'], 'delta': ['14', '43', '47'], 'dragon': ['23', '24', '25', '26'], 'eclipse': ['11', '13', '15', '19'], 'island': ['1', '34', '35']}
+</code></pre>
+
+<p>code of merge function is:</p>
+
+<pre><code>def merge_dictionaries(dict1, dict2):
+
+result = {}
+new_result = {}
+for key in set().union(*(dict1, dict2)):
+    result[key] = sorted(dict1.get(key, []) + dict2.get(key, []), key=int)
+    # Delete any double value for each key
+    new_result[key] = [ii for n, ii in enumerate(result[key]) if ii not in result[key][:n]]
+
+return new_result
+</code></pre>
+
+<p>With result:</p>
+
+<pre><code>Merged:  {'is': ['5', '6', '13', '45', '96'], 'dragon': ['23', '24', '25', '26'], 'apple': ['5', '43', '47', '65'], 'appricote': ['1', '2', '3', '4', '5', '6'], 'delta': ['14', '43', '47'], 'eclipse': ['11', '13', '15', '19'], 'yes': ['1', '2', '3', '11'], 'zone': ['5', '6', '9', '10', '12', '14', '18', '19', '23', '24', '25', '29', '45'], 'blue': ['9', '10', '15', '43'], 'island': ['1', '34', '35'], 'candle': ['1', '2', '4', '5', '6', '9', '15']}
+</code></pre>
+
+<p>What I want to achieve now is to extend this way for merging a dynamic number of dictionaries of this kind.This is my try in which I get from the list of ""dicts"" 2 items each time and try to merge them.</p>
+
+<pre><code>def merge_multiple_dictionaries(dicts):
+''' This is just to print the input I get
+l = len(dicts)
+print(""Len of dicts: "", l)
+for j in range(0, l):
+    print(""j is: "", dicts[j])
+'''
+result = {}
+new_result = {}
+for k in range(0, l):
+     if k is (len(dicts)-1):
+        break
+    print(""k: "", k)
+    for key in set().union(*(dicts[k], dicts[k+1])):
+        result[key] = sorted(dicts[k].get(key, []) + dicts[k+1].get(key, []), key=int)
+        # Delete any double value for each key
+        new_result[key] = [ii for n, ii in enumerate(result[key]) if ii not in result[key][:n]]
+# result = OrderedDict(sorted([(k, v) for k, v in result.items()]))
+
+return new_result
+</code></pre>
+
+<p>So is there a more pythonic way to achieve that?</p>
+","def merge_dictionaries(*args):
+    result = {}
+    for key in set().union(*args):
+        # let's convert the value union to set before sorting to get rid of the duplicates
+        result[key] = sorted(set.union(*[set(d.get(key, [])) for d in args]), key=int)
+    return result
+",<python><dictionary>
+48301468,1,Passing a list and setting it length as a default parameter in python,"<p>I have a class method from Python which is something like as follows:</p>
+
+<pre><code>def func(indel, nind=indel.length):
+    #do_something
+</code></pre>
+
+<p>indel is a list.</p>
+
+<p>I am getting an error when I am using this function definition. Is there any way I can do it?</p>
+","def func(indel, length = None):
+    #do_something
+    if length is None: # By default, use the length of the list
+        length = len(indel)
+    # do whatever with indel and length
+
+# test methods
+test = [1, 2, 3, 4, 5]
+
+func(test) # in this case, length = 5
+
+func(test, 1) # in this case, length = 1
+",<python><list><oop><methods>
+51898035,1,Finding missing elements in a List,"<p>Hello I have a List with a lot of element in it. These are numbers and ordered but some numbers are missing.</p>
+
+<p>Example: <code>L =[1,2,3,4,6,7,10]</code></p>
+
+<p>Missing: <code>M = [5,8,9]</code></p>
+
+<p>How can I find missing numbers in Python?</p>
+","def missing_elements(L):
+    s, e = L[0], L[-1]
+    return sorted(set(range(s, e + 1)).difference(L))
+
+miss = missing_elements(L)
+",<python><list>
+53129922,1,How to recursively search the maximum in a list,"<p>I'm quite new to python and algorithm and I encountered a question which is defined as follows:</p>
+
+<p>Suppose that you are given a python list <code>l</code> of size <code>n</code> which contains only numbers. We index <code>l</code> from 0 to <code>n-1</code>. Further, we suppose that there exists an index <code>k ‚àà {1, ..., n-2}</code> such that </p>
+
+<ul>
+<li>for all <code>i ‚àà {0, ..., k-1}</code>, <code>l[i] &lt; l[i+1]</code></li>
+<li>for all <code>i ‚àà {k, ..., n-2}</code>, <code>l[i] &gt; l[i+1]</code>  </li>
+</ul>
+
+<p>In other words, l is unimodal. An example with <code>k=3</code> is given below:  </p>
+
+<blockquote>
+  <p>l = [-5, 8, 12, <strong>15</strong>, 13, 12, 10, 5, 1, 0, -2]</p>
+</blockquote>
+
+<p>I can easily implement it using an iterative approach:</p>
+
+<pre><code>def findK(l):
+    k = 0
+    while l[k] &lt; l[k + 1]:
+        k += 1
+    return k
+</code></pre>
+
+<p>But how can I do it using a recursive way which is <strong><em>O(logn)</em></strong>?</p>
+","def ternarySearch(f, left, right, absolutePrecision):
+    '''
+    left and right are the current bounds; 
+    the maximum is between them
+    '''
+    if abs(right - left) &lt; absolutePrecision:
+        return (left + right)/2
+
+    leftThird = (2*left + right)/3
+    rightThird = (left + 2*right)/3
+
+    if f(leftThird) &lt; f(rightThird):
+        return ternarySearch(f, leftThird, right, absolutePrecision) 
+    else:
+        return ternarySearch(f, left, rightThird, absolutePrecision)
+",<python><algorithm>
+52499910,1,If condition inside for loop in python,"<p>I am newbie to the <code>python</code>. I am sure this is a very basic question, but still I don‚Äôt get it in python.</p>
+
+<p>I have two <code>1D-arrays</code>, A and B of length 50. 
+I want to find for a given user input, A[0], I must return B[0], A[1]‚Äî‚Äî> B[1]  and so forth..</p>
+
+<p>I have created a function to this task.</p>
+
+<pre><code> A = [10, 20,.... 500]
+ B = [1, 4,.... 2500]
+
+def func():
+    x = input(""enter a value from the array A: "") #user input
+    for i in range(50):
+       if A[i] == x:
+          print(B[i])
+
+       else:
+          print(""do nothing"")
+
+func()
+</code></pre>
+
+<p>But if I call the function, I get nothing.
+I would appreciate if someone could help me.
+Thanks. </p>
+","def func():
+   x=int(input(""enter a value from the array A: ""))
+   if x in A:
+       idx = A.index(x)
+       print(B[idx])
+   else:
+       print(""do nothing"")
+",<python><python-3.x>
+49646411,1,how to split a list into a nested list in Python 3?,"<p>I want to split a list into a nest list. The list I have is this:</p>
+
+<pre><code>[1,2,1,3,2]
+</code></pre>
+
+<p>Now, I want the output to be like this:</p>
+
+<pre><code>[[1,2],[2,1],[1,3],[3,2]]
+</code></pre>
+
+<p>Is there any possible of doing the output as mentioned above?</p>
+","def ngrams(seq, n):
+    return [seq[i:i + n] for i in range(len(seq) - n + 1)]
+
+a = [1,2,1,3,2]
+
+print ngrams(a, 2)
+
+# [[1, 2], [2, 1], [1, 3], [3, 2]]
+",<python><python-3.x>
+53425552,1,How to write Multiple If-Else with Return Integer value,"<pre><code>def score():
+    edu = df.dummy
+    if edu == 1:
+        score= 10
+    elif edu == 2:
+        score= 30
+    elif edu == 3:
+        score= 80
+    elif edu == 4:
+        score= 100
+    elif edu == 5:
+        score= 125
+    elif edu == 6:
+        score= 150
+    elif edu == 7:
+        score= 200
+    else: return score
+</code></pre>
+
+<blockquote>
+  <p>Error Occured : The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
+  How to return a integer value with Multiple if else conditions</p>
+</blockquote>
+","def edu_score():
+    edu = df.dummy
+    edu_score=[]
+    for i in edu:
+        if(i == 1):
+            score = 10
+        elif(i == 2):
+            score = 30
+        elif(i == 3):
+            score = 80
+        elif(i == 4):
+            score = 100
+        elif(i == 5):
+            score = 125
+        elif(i == 6):
+            score = 150
+        elif(i == 7):
+            score = 200
+        edu_score.append(score)
+    return edu_score
+",<python-3.x>
+46788577,1,"How to use multiple ""or"" in python code","<p>My code below only prints ""Remove Special Character"". but if i leave only (""#""), it runs very well. </p>
+
+<pre><code>def name_character(word=input(""Username: "")):
+    if (""#"") or (""$"") or (""&amp;"") in word:
+        return print (""Remove Special Character"")
+    if word == """":
+        return print (""Enter Username"")
+    else: 
+        return print (word)
+
+(name_character())
+</code></pre>
+","def name_character(word=input(""Username: "")):
+    if ((""#"") in word )or ((""$"") in word ) or ((""&amp;"") in word ) :
+        return print (""Remove Special Character"")
+    if word == """":
+        return print (""Enter Username"")
+    else: 
+        return print (word)
+
+(name_character())
+",<python><python-3.x>
+46995443,1,"how to make a function call other 4 functions to perform 4 arithmetic operation (addition, subtraction, multiplication and division)","<p>I'm finding hard to call other functions. For example, if the user input <code>calculate(2,3,""+"")</code> i want to call the <code>addition()</code> function and show the result. if the user input <code>calculate(2,3,""-"")</code> i want to call the <code>subtraction()</code> function.
+this is my code</p>
+
+<pre><code>def addition():
+if string == ""+"":
+    a = num1 + num2
+    print(""addition was performed on the two numbers "", num1, ' and ', num2)
+    return a
+
+
+
+def subtraction():
+if string == ""-"":
+    s = num1 - num2
+    print(""subtraction was performed on the two numbers "", num1, ' and ', num2)
+    return s
+
+
+
+def multiplication():
+if string == ""*"":
+    t = num1 * num2
+    print(""multiplication was performed on the two numbers "", num1, ' and ', num2)
+    return t
+
+
+
+def division():
+if string == ""/"":
+    d = num1 / num2
+    print(""division was performed on the two numbers "", num1, ' and ', num2)
+    return d
+
+
+def calculate(num1, num2, string):
+str(string)
+</code></pre>
+
+<p>I want the <code>calculate(num1, num2, string)</code> to call the other functions.
+by the way im beginner sorry if my code make you confused </p>
+
+<p>**Thanks, domandinho. The if spaces got messed up when I pasted the code here, cheers **</p>
+","def addition(num1, num2):
+    a = num1 + num2
+    print(""addition was performed on the two numbers "", num1, ' and ', num2)
+    return a
+
+
+def subtraction(num1, num2):
+    s = num1 - num2
+    print(""subtraction was performed on the two numbers "", num1, ' and ', num2)
+    return s
+
+
+def multiplication(num1, num2):
+    t = num1 * num2
+    print(""multiplication was performed on the two numbers "", num1, ' and ', num2)
+    return t
+
+
+def division(num1, num2):
+    d = num1 / num2
+    print(""division was performed on the two numbers "", num1, ' and ', num2)
+    return d
+
+
+def calculate(num1, num2, string):
+    result = None
+    if string == '+':
+        result = addition(num1, num2)
+    elif string == '-':
+        result = subtraction(num1, num2)
+    elif string == '*':
+        result = multiplication(num1, num2)
+    elif string == '/':
+        result = division(num1, num2)
+    print('Result is ' + str(result))
+",<python-3.x>
+52453738,1,Merging two sorted linked lists in Python,"<p>I am solving a Leetcode question (Problem #21) that takes two sorted linked lists and returns a sorted, merged linked list. For example, Input: 1->2->4, 1->3->4 and Output: 1->1->2->3->4->4.</p>
+
+<p>I am not super experienced with linked lists, but am trying to tackle more problems to gain exposure. Instead of returning the desired output, of [1,1,2,3,4,4], my code just returns [4]. However, I think the main logic is there, and I am hopefully missing something small.</p>
+
+<pre><code>def mergeTwoLists(self, l1, l2):
+        """"""
+        :type l1: ListNode
+        :type l2: ListNode
+        :rtype: ListNode
+        """"""
+        newList = ListNode(0) # used for single, merged list
+        while l1 and l2:
+            if l1.val &lt;= l2.val: # compare current node's values
+                newList.next = l1
+                l1 = l1.next
+            else:
+                newList.next = l2
+                l2 = l2.next
+
+        return newList.next # first node is 0, which we don't want
+</code></pre>
+","def mergeTwoLists(self, l1, l2):
+    newList = ListNode(0)
+    cur = newList 
+    while l1 and l2:
+        if l1.val &lt; l2.val:
+            cur.next = l1
+            l1 = l1.next
+        else:
+            cur.next = l2
+            l2 = l2.next
+        cur = cur.next
+    cur.next = l1 or l2 # add non-empty list
+    return newList.next
+",<python><sorting><merge><linked-list>
+47893191,1,Finding a word from a list of strings,"<p>Say I have a list of strings </p>
+
+<pre><code>[""rdfa"", ""gijn"", ""ipqd""]
+</code></pre>
+
+<p>and have a variable containing the string ""and"", how would I be able to check if ""and"" is in the list? To make this more clear think of the list as a word search:</p>
+
+<pre><code>rdfa
+gijn
+ipqd
+</code></pre>
+
+<p>I see the vertical word ""and"", but how would I be able to check if the word ""and"" is in the list? Finding horizontal words was much easier, but finding a vertical word is confusing me. I was thinking possibly that I would need to find if the first letter of ""and"" is in any element in the list, then I would need to find if the second letter is in the same column as the first, and also in the row above or below the first letter, and the same for subsequent letters (as I'd like this to work for any length word). However I'm not sure how this would be implemented. I hope the question is clear as it's quite difficult to explain without a showing a word search.</p>
+","def transpose(l):
+    return map(''.join, zip(*l))
+
+l = [""rdfa"", ""gijn"", ""ipqd""]
+
+if 'and' in transpose(l):
+    ...
+",<string><python-3.x><list><substring>
+46991671,1,"How can I operate, like take square root, of numbers like 2x + 4y + 6z?","<p>I am working on a project for my Applied Mathematics major, basically I have a number class (triangular fuzzy numbers) and I have a function that uses similarity method on fuzzy numbers I give as input.</p>
+
+<p>Problem is, this is a Fuzzy Linear Programming problem, so what I do is let's say:</p>
+
+<p>For fuzzy numbers A, B and C:</p>
+
+<pre><code>Max Z = (2, 3, 4)A (+) (3, 5, 7)B (+) (2, 4, 6)C
+</code></pre>
+
+<p>To find Max Z, I have to turn this into the following:</p>
+
+<pre><code>Max Z = Sqrt((1/3)((2Ax + 3Ay + 4Az)^2 + (3Bx + 5By + 7Bz)^2 + (2Cx + 4Cy + 6Cz)^2))
+</code></pre>
+
+<p>There is also ranking function, which takes x, y and z of a fuzzy number and gives back (x+2y+z)/4</p>
+
+<p>So for fuzzy number (3, 5, 7)A it has to give back:</p>
+
+<pre><code>(3Ax + 10Ay + 7Az)/4
+</code></pre>
+
+<p>What is the best approach to this?</p>
+
+<p>I decided to give my ""Triangular Fuzzy"" or Trifuz class called __type, which is ""Defined"" as default but it has a try/expect method that tries to convert input parameters to create a triangular fuzzy number (like Trifuz([3, 5, 7])) into int and if it is unable, it assigns itself as ""Undefined"" so I can know if a fuzzy numbers is defined as numbers or defined as unknowns.</p>
+
+<p>Problem is, operation on a Fuzzy Number A = (Ax, Ay, Az) is easy, operating on fuzzy number A = (3Ax, 5Ay, 7Az) is hard because I need to be able to operate on these numbers like 3, 5 and 7, while Ax, Ay and Az are reassigned to new values.</p>
+
+<p>What is the best approach to this?</p>
+
+<p>Edit: Also I am talking about operating on numeric part of the unknown number, not operating on unknown part. I want to sqrt(2x) to return 1.414‚àöx.</p>
+
+<p>Forgot to mention that I am trying to do this without using any additional libraries, especially any math related libraries, even Math itself.</p>
+","def splitNumber(word):
+    split = list(word)
+    number = []
+    k = 0
+    while(True):
+        for i in split:
+            try:
+                number.append(int(i))
+                k = k + 1
+            except ValueError:
+                break
+        break
+    for i in range(0, k):
+        del split[i]
+    if(k == 0):
+        number.append(1)
+    number = """".join(str(x) for x in number)
+    split = """".join(split)
+    return [number, split]
+",<python><python-3.x><math><fuzzy-logic><mathematical-expressions>
+46787949,1,Multiple words concordance in a text,"<p>I have a words file to find their concordances in a text (maximum 3 positions right and left)</p>
+
+<p>Words file: </p>
+
+<blockquote>
+  <p>buy</p>
+  
+  <p>time</p>
+  
+  <p>glass</p>
+  
+  <p>home</p>
+  
+  <p>red</p>
+</blockquote>
+
+<p>Text file:</p>
+
+<blockquote>
+  <p>After almost a decade selling groceries online, Amazon has failed to make a major dent on its own as consumers have shown a stubborn urge to buy items like fruits, vegetables and meat in person.
+  Do you find yourself spending more time on your phone than you ... mindlessly passing time on a regular basis by staring at your phone?
+  The process can be fraught with anxiety, as many different glass styles are available, and points of view clash on what is proper and necessary</p>
+</blockquote>
+
+<p>Script: </p>
+
+<pre><code>def keywordsContext(file, fileName):
+    #file: text file
+    #fileName: words file
+
+    with open(file, ""r"") as f, open(fileName, ""r"") as fi:
+
+        corpus = f.read().split()
+        pivot = fi.read().split()
+
+        for keywords in pivot:
+            if keywords in corpus:
+                index = pivot.index(keywords)
+                contexts = keywords+"":"", pivot[index-3:index], pivot[index+1:index+4]
+                print(contexts)
+            else:
+                pass
+</code></pre>
+
+<p>Output: </p>
+
+<blockquote>
+  <p>('buy:', [], ['time', 'glass', 'home'])</p>
+  
+  <p>('time:', [], ['glass', 'home', 'red'])</p>
+  
+  <p>('glass:', [], ['home', 'red'])</p>
+  
+  <p>None</p>
+</blockquote>
+
+<p>Output I wanted:</p>
+
+<blockquote>
+  <p>'buy': stubborn urge to buy items like fruits</p>
+  
+  <p>'time': yourself spending more time on your phone</p>
+  
+  <p>'glass': as many different glass styles are available</p>
+</blockquote>
+
+<p><strong>EDIT</strong></p>
+
+<p>And... if the same word appears more than once? I did a test (with one more sentence in the corpus to repeat the word 'glass'). I tried putting a while len (corpus) != 0 but it's a loop that repeats with the same outputs...</p>
+
+<pre><code>def keywordsContext(file, fileName):
+
+    with open(file, ""r"") as f, open(fileName, ""r"") as fi:
+
+        corpus = f.read().split()
+        pivot = fi.read().split()
+
+        while len(corpus) != 0:
+
+            for keywords in pivot:
+                if keywords in corpus:
+                    inde = corpus.index(keywords)
+                    contexts = keywords+"": ""+ ' '.join(corpus[inde-3:inde+4])
+                    print(contexts)
+</code></pre>
+
+<p><strong>Output:</strong></p>
+
+<blockquote>
+  <p>buy: stubborn urge to buy items like fruits,</p>
+  
+  <p>time: yourself spending more time on your phone</p>
+  
+  <p>glass: as many different glass styles are available,</p>
+  
+  <p>buy: stubborn urge to buy items like fruits,</p>
+  
+  <p>time: yourself spending more time on your phone</p>
+  
+  <p>glass: as many different glass styles are available,</p>
+  
+  <p>buy: stubborn urge to buy items like fruits,</p>
+  
+  <p>time: yourself spending more time on your phone</p>
+  
+  <p>glass: as many different glass styles are available,</p>
+  
+  <p>...</p>
+</blockquote>
+","def keywordsContext(file, fileName):
+#file: text file
+#fileName: words file
+
+with open(file, ""r"") as f, open(fileName, ""r"") as fi:
+
+    corpus = f.read().split()
+    pivot = fi.read().split()
+    for keywords in pivot:
+        if keywords in corpus:
+            lst_index = 0
+            for i in range(0, corpus.count(keywords)):
+                inde = corpus.index(keywords, lst_index)
+                contexts = keywords+"": ""+ ' '.join(corpus[inde-3:inde+4])
+                lst_index = inde+1
+                print(contexts)
+        else:
+            pass
+",<python><python-3.x>
+45771376,0,Update dictionary - the pythonic way,"<p>I have the following piece of code which I believe can look more pythonic:</p>
+
+<pre><code>def info(self, msg, *args, **kwargs):
+    if 'extra' in kwargs:
+        kwargs['extra'].update({'session_id': self.session_id})
+    else:
+        kwargs['extra'] = {'session_id': self.session_id}
+</code></pre>
+
+<p>I'm trying check if kwargs have a a dictionary named extra, if it does then add a value to it, otherwise create a new dict.</p>
+","def info(self, msg, *args, **kwargs):
+    if 'extra' not in kwargs:
+        kwargs['extra'] = dict()
+    kwargs['extra']['session_id'] = self.session_id
+",<python><python-3.x>
+44360991,0,removing duplicates from a bool list,"<p>I am trying to get a word in a list that is followed by a word with a ''.'' in it. for example, if this is a list </p>
+
+<pre><code>test_list = [""hello"", ""how"", ""are."", ""you""]
+</code></pre>
+
+<p>it would select the word ''you'' I have managed to pull this off but I am trying to ensure that I do not get duplicate words. 
+Here is what I have so far</p>
+
+<pre><code>list = []
+i = 0
+bool = False
+words = sent.split()
+for word in words:
+    if bool:
+        list.append(word)
+        bool = False
+   # the bellow if statment seems to make everything worse instead of fixing the duplicate problem
+    if ""."" in word and word not in list:
+        bool = True
+return list 
+</code></pre>
+","def getWordAfterDot(words):
+    for index, word in enumerate(words):
+        if word.endswith('.') and len(words) - index &gt; 1:
+            yield words[index + 1]
+",<python><python-3.x>
+50641445,0,Python 3.6 - How to search through a 2D list and return true or false if an item matches user input,"<p>I am using EDX to start learning python and I am stuck in a project that requires me to create a tic tac toe game.</p>
+
+<p>I believe I have managed to complete most of the functions but when I tried to run the function that checks whether a position is available to be marked as X or O, I always get a false reading. It returns true only for the 7 and not for the rest of the items.</p>
+
+<pre><code>board = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']]
+
+location = input("" Turn, select a number (1, 9): "")
+
+def available(location, board):
+    for row in board:
+        for col in row:
+            if col==location:
+                return True
+            else:
+                return False
+
+print(available(location,board))
+</code></pre>
+
+<p>I decided to separate the function from the rest of the code. The code above should be able to search the 2D list and if it finds the number that the user has entered to return true or false. When it does that another function is executed to change that number to X or O depending the player. I tried to run the function without the function and with print instead of return and works fine.</p>
+
+<pre><code>board = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']]
+
+location = input("" Turn, select a number (1, 9): "")
+for row in board:
+    for col in row:
+        if col==location:
+            print(""True"")
+        else:
+            print(""False"")
+</code></pre>
+
+<p>Any idea what I am doing wrong?</p>
+","def available(location, board):
+    for row in board:
+        for col in row:
+            if col==location:
+                return True
+
+    return False
+",<python-3.x>
+44448198,0,How to sort data of txt file in Python,"<p>I have devices.txt file that looks like this:</p>
+
+<pre><code>tw004:Galaxy S5:Samsung:Mobilni telefon:5
+tw002:Galaxy S6:Samsung:Mobilni telefon:1
+tw001:Huawei P8:Huawei:Mobilni telefon:4
+tw003:Huawei P9:Huawei:Mobilni telefon:3
+</code></pre>
+
+<p>Now, I have code like this, and I have to chose how to sort devices in table (for example sort them by code from tw001 to tw004 or sort them by producer's name from A to Z)</p>
+
+<pre><code>def formatheader():
+        print(
+    ""Code |    Name    |  Producer  |       Description       |  Quantity   |\n""
+    ""-----+------------+------------+-------------------------+-------------|"")
+
+def sortbycode():
+    devices = open('devices.txt', 'r')
+    formatheader()
+    for i in devices:
+        devices = i.strip(""\n"").split("":"")
+        print(""{0:5}|{1:13}|{2:15}|{3:18}|{4:5}"".format(    
+            devices[0],
+            devices[1],
+            devices[2],
+            devices[3],
+            devices[4]))
+    print()
+</code></pre>
+
+<p>How to do that?</p>
+","def formatheader():
+        print(
+    ""Code |    Name     |   Producer    |     Description  |  Quantity   |\n""
+    ""-----+-------------+---------------+------------------+-------------|"")
+
+def sortbycode():
+    device_file = open('devices.txt', 'r')
+    formatheader()
+    devices = []
+    for line in device_file:
+        devices.append([i  for i in line.strip(""\n"").split("":"")])
+    devices.sort(key=lambda x:x[0])
+    for device in devices:
+      print(""{0:5}|{1:13}|{2:15}|{3:18}|{4:5}"".format(*device))
+sortbycode()
+",<python><sorting>
+46150425,0,Add all list items to string python,"<p>I have a list
+<code>""SecretList""</code>: <code>[""GitHubToken"",""GitHubUser""]</code></p>
+
+<pre><code>def handler(event, context):                 
+    response_data = {}
+    try:
+        param = "" ""
+        param_value = [event['SecretList']]
+        for i in range(len(param_value)):
+            param[i] = ‚Äú ‚Äú.join(map(str, param_value[1])
+            value = get_parameters(param[i])
+            print (value)
+
+    except Exception as e:
+        print (e)
+</code></pre>
+
+<p>Need the list items in seperate strings</p>
+
+<pre><code>str1=GitHubToken
+str2=GitHubUser
+</code></pre>
+
+<p>My logic is not working , can someone suggest me please</p>
+","def handler(event, context):                 
+response_data = {}
+try:
+    param = {}
+    param_value = event['SecretList']
+    for idx, item in enumerate(param_value):
+        print (idx)
+        value = get_parameters(param_value[idx])
+        print (value)
+
+except Exception as e:
+    print (e)
+",<python-3.6>
+53063701,0,How to convert string to dictionary to retrieve one value from it?,"<p>One of my function returns the string  'sumstr' as declared in below function 'def convert_st(self)' :</p>
+
+<pre><code>def covert_st(self):
+    sumstr= 'Email: testmail@gmail.com ,Status: Connected, Logstate: On'
+    dd ={}
+    for st in sumstr:
+        key,value=st.split(',')
+        dd[key] = value
+    print dd
+    print dd['Email']
+</code></pre>
+
+<p>I am trying to convert the string 'sumstr'  to dictionary and read the value of 'Email' .
+But I am getting Error :  ""in covert_st ValueError: need more than 1 value to unpack""</p>
+","def covert_st():
+    sumstr= 'Email: testmail@gmail.com ,Status: Connected, Logstate: On'
+    sumstr = sumstr.split(',')
+    dd ={}
+    for st in sumstr:
+        key,value=st.split(':')
+        dd[key] = value
+    print dd
+    print dd['Email']
+",<python-2.7><dictionary>
+52306578,0,how to print lines in a txt which fulfills certain condition with python?,"<pre><code>def palindrome_filter(file_name):
+    file=open('text_1.txt','r')
+    for line in file:
+        line=line.rstrip()
+        if (is_palindrome(line)):
+            print(line)
+    file.close()
+palindrome_filter('text_1.txt')
+</code></pre>
+
+<p>Above are the codes that I wrote. I actually want python to print the certain line which is a palindrome, but it keeps printing true or false instead. I wonder what's wrong with my code. (function to determine whether a line is palindrome is texted, it is correct.)</p>
+","def palindrome_filter(file_name):
+    file=open('text_1.txt','r')
+    for line in file:
+        line = line.rstrip()
+        if line == line[::-1]:
+            print(line)
+    file.close()
+",<python-3.x>
+44373118,0,How to obtain a list of numbers that are divided by a certain number using the filter function in Python?,"<p>I want to write a function that recieves a list and a number and returns another list with all numbers that are divided by the number passed by argument. For example:</p>
+
+<pre><code>filter_list_by_factor([1, 2, 3, 4, 5], 2)
+&gt;&gt;&gt; [2, 4]
+</code></pre>
+
+<p>So I thought about creating a function called is_factor:</p>
+
+<pre><code>def is_factor(a, b):
+    return a % b == 0
+</code></pre>
+
+<p>Then, I wanted to call the function this way:</p>
+
+<pre><code>def filter_list_by_factor(numbers_list, number):
+    return list(filter(is_factor, numbers_list))
+</code></pre>
+
+<p>But it result in this error: <strong><em>TypeError: is_factor() missing 1 required positional argument: 'b'</em></strong></p>
+
+<p>Can you guys help me?</p>
+","def is_factor(a, b):
+   return [i for i in a if i%b == 0]
+
+
+print(is_factor([1, 2, 3, 4, 5], 2))
+",<python><python-3.x>
+44295014,0,How i make the code skip to a certain point in a if-statement,"<p>I'm working on a basic game. I'd like to know how I can make the code go to a specific point in the code/if-statement, rather than starting off at the beginning. </p>
+
+<p>For example, in my code at line 19: <code>kithcen()</code> I don't want to redirect it to the start of the if-statement; again going on the describe the kitchen and then asking for an input: <code>choice02 = raw_input(""What do you do?"")</code>, but rather i want it to directly skip to the input part.</p>
+
+<pre><code>def kitchen():
+    print ""You see a dusty old kitchen, nobody has probably used it for quite a while.""
+    print ""There are 3 different cupboards(0, 1, 2) or a letter(3) placed on the counter.""
+    choice02 = raw_input(""What do you do? &gt;"")
+
+    if choice02 == ""0"" or choice02 == ""first cupboard"" or choice02 == ""check first cupboard"" or choice02 == ""open first cupboard"":
+        print ""You see a dusty empty bottles of milks, with spiderwebs at the corners of the cupboard. Nothing of Interest here.""
+        raw_input(""&gt;"")
+        kitchen()
+
+    elif choice02 == ""1"" or choice02 == ""second cupbaord"" or choice02 == ""check second cupboard"" or choice02 == ""open second cupboard"":
+        print ""You see some packs of likely expired cereal and a key(0).""
+        choice_02_A = raw_input(""What do you do? &gt;"")
+
+   #----------------------------------------------------------------------------------------------------------#
+        if choice02_A == ""pick key"" or choice02_A == ""key"" or choice02_A == ""0"" or choice02_A == ""get key"":
+            print ""You picked the key. This probably unlocks some door.""
+            raw_input(""&gt; "")
+            kitchen()
+
+        elif choice02_A == ""close cupboard"" or choice02_A == ""kitchen"" or choice02_A == ""go back to kitchen"":
+            kitchen()
+
+        else:
+            print ""Not a valid option.""
+   #-----------------------------------------------------------------------------------------------------------#
+
+    elif choice02 == ""2"" or choice02 == ""third cupboard"" or choice02 == ""check third cupboard"" or choice02 == ""open third cupboard"":
+        print ""You see an empty or dusty cupboard. Nothing of interest here.""
+        raw_input(""&gt; "")
+        kitchen()
+
+    elif choice02 == ""3"" or choice02 == ""check letter"" or choice02 == ""letter"" or choice02 == ""read letter"":
+        print """"""
+        You read the letter:
+        \n""Dear Shawn............\n""
+        It makes no sense to you.
+        """"""
+
+
+    elif choice02 == ""go back"" or choice02 == ""entrance hall"" or choice02 == ""go to entrance hall"":
+        entrance_hall()
+
+else:
+    ""Not a valid Option.""
+</code></pre>
+","def kitchen(already_there=False):
+    if not already_there:
+        print('...')
+    choice02 = raw_input(""What do you do? &gt;"")
+
+    # ...
+
+    elif # ...
+        # ...
+        kitchen(already_there=True)
+",<python-2.7><if-statement>
+48566905,0,Retrieve list of weekdays for any case,"<p>Hi everybody I have a small issue of coding:<br>
+I have a list of numbers from <code>0</code> to <code>6</code> that represent days of the week from Sunday to Saturday<br>
+So <code>Sunday = 0</code> and <code>Saturday = 6</code> 
+So the list is <code>[0,1,2,3,4,5,6]</code>  </p>
+
+<p>There is no problem to retrieve the list between two days (or number) if the from &lt; to.<br>
+example:<br>
+from <code>Monday= 1</code> to <code>Thursday= 4</code> there are these numbers included : <code>[1,2,3,4]</code></p>
+
+<p>Problems come when you have to retrieve the list of days when from > to:
+example:<br>
+from <code>Friday = 5</code> to <code>Tuesday =2</code> we need to catch this list : <code>[5, 6, 0, 1, 2]</code></p>
+
+<p>Do you have idea how can I code an algorithm or a function that will give me a list of days (here numbers)  to include if I give a number ""from"" and a number ""to"" whatever ""from"" is inferior or superior to the ""to"" value.</p>
+
+<p>Thank you very much for your help.</p>
+","def getweekdays(frm, to):
+    days = [0,1,2,3,4,5,6]
+    if frm &lt;= to:
+        return days[frm:to+1]
+    else:
+        return days[frm:] + days[:to+1]
+",<python><algorithm>
+53084308,0,Need to append dictionary values to dictionary,"<p>I have function which returns something like this</p>
+
+<pre><code>{a:{b:{c:4}}}
+</code></pre>
+
+<p>and when i again call that function in loop it will return </p>
+
+<pre><code>{a:{b:{d:5}}}
+</code></pre>
+
+<p>and again it will return</p>
+
+<pre><code>{a:{b:{e:6}}}
+</code></pre>
+
+<p>So i want my final output to be <code>{a:{b:{c:4, d:5, e:6}}}</code></p>
+
+<p>I tried </p>
+
+<pre><code>final_output.update(func)
+</code></pre>
+
+<p>But this will update as final_output as <code>{a:{b:{e:6}}}</code></p>
+
+<pre><code>    def create_dict(self, make_dict, key, value):
+        final_dict = make_dict
+        keys = key.split('.')
+        latest = keys.pop()
+        for key in keys:
+            final_dict = final_dict.setdefault(key, {})
+        final_dict.setdefault(latest, value)
+
+self.create_dict(status_dict, '{}.{}.{}'.format(name, ton_set.id, ton_id),
+                                                  status)
+</code></pre>
+
+<p>Here is my function <code>func</code> = <code>create_dict</code>.</p>
+
+<p>Will a <code>defaultdict</code> help me in this situation?</p>
+","def update_only_new(original_dict, to_add):
+    for key in to_add.iterkeys():
+        if key not in original_dict:
+            original_dict[key] = to_add[key]
+        else:
+            update_only_new(original_dict[key], to_add[key])
+
+&gt; dct={} 
+&gt; d1 = {'a': {'b': {'c': 4}}} 
+&gt; d2 = {'a': {'b': {'d': 5}}}    
+&gt; d3 = {'a': {'b': {'e': 6}}} 
+&gt; update_only_new(dct,d1) 
+&gt; print dct 
+  {'a': {'b': {'c': 4}}} 
+&gt; update_only_new(dct,d2) 
+&gt; print dct 
+  {'a': {'b': {'c': 4, 'd': 5}}} 
+&gt; update_only_new(dct,d3) 
+&gt; print dct 
+  {'a': {'b': {'c': 4, 'e': 6,'d': 5}}}
+",<python><dictionary>
+49786424,0,Building a dictionary with lists using recursion,"<p>I was trying to build a dictionary with recursion for a school project. Right now I think I have the general structure figured out, but I can't figure out how to get the return statement to concatenate pieces of the dictionary together. </p>
+
+<p>I realize this would probably be easier by constructing an empty dictionary then adding to it, but I wanted to see if there were any tricks I could use.</p>
+
+<p>The output I was looking for is:</p>
+
+<pre><code>print(recur_join([1,2,3], ['a', 'b', 'c']))
+&gt;&gt;&gt; {1: 'a', 2 : 'b', 3 : 'c'}
+</code></pre>
+
+<p>I have tried .update() and something of the form dict(basket_one, **basket_two) from another answer. I may have used them wrong. I am using python 3.</p>
+
+<p>Here is my code as of now:</p>
+
+<pre><code>def recur_join(list1, list2):
+
+    if len(list1) == len(list2):
+
+        if len(list1) == 1:
+            return {list1[0]: list2[0]}
+
+        elif len(list1) &gt; 1:
+            # dict(basket_one, **basket_two)
+            #return dict({list1[0]: list2[0]}, **recur_join(list1[1:], 
+    list2[1:]))
+            return {list1[0]: list2[0]}.update(recur_join(list1[1:], list2[1:]))
+
+    else:
+        print('lists do not match in size')
+        return 0
+</code></pre>
+
+<p>Any help would be appreciated, sorry if this was answered before.
+Thanks!</p>
+","def recur_join(list1, list2):
+    cur = {}
+    if len(list1) == len(list2) and len(list1) &gt; 0:
+        cur = {list1[0]: list2[0]}
+        if len(list1) &gt; 1:
+            cur.update(recur_join(list1[1:], list2[1:]))
+    else:
+        print('lists do not match in size')
+    return cur
+",<python-3.x>
+52709800,0,return longest word from a string,"<p>I need to define a function called ""len_score"" that returns the length of a word. Call the ""best"" function with the len_score function as a parameter.</p>
+
+<p>Output I want to be:
+print(best(len_score, names), ""has the longest name."")</p>
+
+<p>McJagger has the longest name.</p>
+
+<p>My code is:</p>
+
+<pre><code>def len_score(name):
+    lst=[len(x) for x in name]
+    return lst
+def best(lst1,lst2):
+    final=zip(lst1,lst2)
+    return max final
+
+names = [""Ben"", ""April"", ""Zaber"", ""Alexis"", ""McJagger"", ""J.J."", ""Madonna""]
+
+print(best(len_score, names) == 'McJagger')
+</code></pre>
+
+<p>But I got error and not sure how to set condition on the list.</p>
+","def len_score(name):
+    lst = [len(x) for x in name]
+    return lst
+
+def best(func, lst):
+    func_lst = func(lst) # call the passed in function ON lst
+    return lst[func_lst.index(max(func_lst))]
+
+names = [""Ben"", ""April"", ""Zaber"", ""Alexis"", ""McJagger"", ""J.J."", ""Madonna""]
+
+print(best(len_score, names) == 'McJagger')
+",<python><python-3.x>
+45442860,0,How to find exact location of a word in list of lists in python(find_word_horizontal),"<p>I have a list of lists:</p>
+
+<pre><code>my_list=[['d','c','d','o','g','q'],
+            ['c','c','u','c','m','w'],
+            ['x','c','c','a','t','t'],
+            ['t','c','e','t','k','e']]
+
+word='cat'
+</code></pre>
+
+<p>I want to find the location of the word[0] and return it as a list:
+word[0]='c', so my function should return this:</p>
+
+<pre><code>[2,2]...
+</code></pre>
+
+<p>If my word is <code>'dog'</code>, My function would return:</p>
+
+<pre><code>[0,2]...
+</code></pre>
+
+<p>I have the following code bu it doesn't work.</p>
+
+<pre><code>def find_word_horizontal(my_list, word):
+    r=[]
+    for row in my_list:
+        x = """".join(row)
+        s=x.find(word)
+        if s != -1:
+            a=my_list.index(row)
+            r.append(a)
+            b=x.index(word[0])
+            r.append(b)
+    return r
+</code></pre>
+
+<p>returns: [2,1] for 'cat' instead [2,2] and [0,1] for  'dog' instead [0,2]</p>
+","def find_word_horizontal(my_list, word):
+    r=[]
+    for row in my_list:
+        x = """".join(row)
+        s=x.find(word)
+        if s != -1:
+            a=my_list.index(row)
+            r.append(a)
+            b=x.index(word)
+            r.append(b)
+    return r
+",<python><python-3.x>
+42537691,0,python for loop in matrix to assign values,"<p>I was creating a program that will create a grid and the program will
+deside its position by a matrix array you assign at the input.</p>
+
+<p>code: </p>
+
+<pre><code>def onbekende_naam(hoogtes):
+    print(hoogtes)
+    i = 0
+    j = 0
+    pos1 = set()
+
+    for hoogtes_subs in hoogtes:
+        j = 0
+        for hoogtes in hoogtes:
+            print(""i = "" + str(i))
+            print(""j = "" + str(j))
+            pos1.add((i, j))
+            print pos1
+            j += 1
+        i += 1
+        #pos1.add((i, j))
+
+    return pos1
+
+#verwerking
+print (onbekende_naam(hoogtes)) 
+</code></pre>
+
+<p>input:</p>
+
+<pre><code>4 4
+1 2 3 4
+5 6 7 8
+9 1 2 3
+4 5 6 7
+12 1
+</code></pre>
+
+<p>output:</p>
+
+<pre><code>[['1', '2', '3', '4'], ['5', '6', '7', '8'], ['9', '1', '2', '3'], ['4', '5', '6', '7']]
+i = 0
+j = 0
+set([(0, 0)])
+i = 0
+j = 1
+set([(0, 1), (0, 0)])
+i = 0
+j = 2
+set([(0, 1), (0, 0), (0, 2)])
+i = 0
+j = 3
+set([(0, 1), (0, 3), (0, 0), (0, 2)])
+i = 1
+j = 0
+set([(0, 1), (0, 3), (0, 0), (0, 2), (1, 0)])
+i = 1
+j = 1
+set([(0, 1), (0, 0), (0, 2), (1, 0), (0, 3), (1, 1)])
+i = 1
+j = 2
+set([(0, 1), (1, 2), (0, 0), (0, 2), (1, 0), (0, 3), (1, 1)])
+i = 1
+j = 3
+set([(0, 1), (1, 2), (0, 0), (0, 2), (1, 3), (1, 0), (0, 3), (1, 1)])
+i = 2
+j = 0
+set([(0, 1), (1, 2), (0, 0), (0, 2), (2, 0), (1, 3), (1, 0), (0, 3), (1, 1)])
+i = 3
+j = 0
+set([(0, 1), (1, 2), (0, 0), (3, 0), (0, 2), (2, 0), (1, 3), (1, 0), (0, 3), (1, 1)])
+set([(0, 1), (1, 2), (0, 0), (3, 0), (0, 2), (2, 0), (1, 3), (1, 0), (0, 3), (1, 1)])
+</code></pre>
+
+<p>as you can see it stops incrementing j when the i value is bigger than 2</p>
+
+<p>I'm fairly new at this so thanks for helping</p>
+","def onbekende_naam(hoogtes):
+    print(hoogtes)
+    i = 0
+    j = 0
+    pos1 = set()
+
+    for hoogtes_subs in hoogtes:
+        j = 0
+        for another_name_hoogtes in hoogtes:
+            print(""i = "" + str(i))
+            print(""j = "" + str(j))
+            pos1.add((i, j))
+            print pos1
+            j += 1
+        i += 1
+        #pos1.add((i, j))
+
+    return pos1
+
+#verwerking
+print (onbekende_naam(hoogtes)) 
+",<python><arrays><for-loop><matrix>
+52157858,0,How to print a tabular dictionary in Python,"<p>Suppose I have a dictionary of the form:   </p>
+
+<pre><code>the_board = {(1,1) : ' ', (1,2) : ' ', (1,3) : ' ',
+             (2,1) : ' ', (2,2) : ' ', (2,3) : ' ',
+             (3,1) : ' ', (3,2) : ' ', (3,3) : ' ',}
+</code></pre>
+
+<p>I want to print each row line by line. Currently I do something like this:</p>
+
+<pre><code>def display(board):
+    var = list(board.values())  # Iterator to print out the table
+    i = 0
+    j = 0
+    maxi = len(var)
+    while i &lt; maxi:
+        while j &lt; (i + 3):
+            print(var[j], end="""")
+            if j &lt; i+2:
+                print('|', end='')
+            j += 1
+        print()
+        if i &lt; (maxi-1):
+            print(""-+-+-"")
+        i += 3
+</code></pre>
+
+<p>I am aware that this is most likely not the most ""pythonic way"" to achieve what I want. How would I do so in a more pythonic manner? (I am aware that I can use the keys to achieve this since I gave them coordinate keys, but I may need to print a tabular dictionary without ordered/subscripted keys, so I would appreciate a more general solution).<br>
+&nbsp;<br>
+Found out about Python's <a href=""https://docs.python.org/3/library/functions.html#func-range"" rel=""nofollow noreferrer"">range</a> function, so now my code looks like this:   </p>
+
+<pre><code>def display(board):
+    var = list(board.values())  # Iterator to print out the table
+    maxi = len(var)
+    for i in range(0, maxi, 3):
+        for j in range(i, (i+3)):
+            print(var[j], end="""")
+            if j &lt; i+2:
+                print('|', end='')
+        print()
+        if i &lt; (maxi-1):
+            print(""-+-+-"")
+</code></pre>
+
+<p>Still not sure it's the best way to write it.</p>
+","def chunks(l,n):
+"""""" Split list into chunks of size n """"""
+    for i in range(0, len(l), n):
+        yield l[i:i+n]
+
+def display(board):
+    for values in chunks(list(the_board.values()), 3):
+        print('|'.join(values))    # use str.join to concat strings with separators
+        print('-+-+-')
+",<python><dictionary>
+46860569,0,Removing a word from a list which appears one after the other,"<p>Lets say i have a list of words as shown below,</p>
+
+<pre><code>A=['ab','bc','cd','de','de','ef','bc']
+</code></pre>
+
+<p>I tried to use sets as seen below,</p>
+
+<pre><code>def remove_similar_words(self,sent):
+
+    original_set = set()
+    result = []
+    for item in sent:
+        if item not in original_set:
+            original_set.add(item)
+            result.append(item)
+    return result
+</code></pre>
+
+<p><code>sent</code> is list <strong>A</strong>.</p>
+
+<p>The result of the above method would be </p>
+
+<pre><code>result=['ab','bc','cd','de','ef']
+</code></pre>
+
+<p>But, i need the result to be,</p>
+
+<pre><code>needed_result=['ab','bc','cd','de','ef','bc']
+</code></pre>
+
+<p><strong>Question</strong> : How can i change my code to cater the requirement of producing the list <code>needed_result</code>?</p>
+
+<p>Also i would like to avoid sets since i need to preserve the order.</p>
+","def remove_similar_words(sent):
+
+last = """"
+result = []
+for item in sent:
+    if item != last:
+        last=item
+        result.append(item)
+return result
+
+A=['ab','bc','cd','de','de','ef','bc']
+print ("", "".join(remove_similar_words(A)))
+",<list><set><python-3.6>
+46710308,0,"First ""for loop"" stops after first iteration python","<p>I am reading two different files with for loop. First ""for loop"" stops after first iteration. The print output is only line1 of f1 with all lines of f2 but then exit the loop.  </p>
+
+<pre><code>for line1 in f1:
+    line1 = line1.split('\t')
+    for line2 in f2:
+        line2 = line2.split('\t')
+
+        print line1,line2
+</code></pre>
+
+<blockquote>
+  <p><strong>f1:</strong></p>
+  
+  <p>x1</p>
+  
+  <p>x2</p>
+  
+  <p>x3</p>
+  
+  <p><strong>f2:</strong></p>
+  
+  <p>y1</p>
+  
+  <p>y2</p>
+  
+  <p>y3</p>
+  
+  <p><strong>output:</strong></p>
+  
+  <p>x1 y1</p>
+  
+  <p>x1 y2</p>
+  
+  <p>x1 y3</p>
+  
+  <p>x2 y1</p>
+  
+  <p>x2 y2</p>
+  
+  <p>x2 y3</p>
+  
+  <p>x3 y1</p>
+  
+  <p>x3 y2</p>
+  
+  <p>x3 y3</p>
+</blockquote>
+","def print_both(f1, f2):
+    f1.seek(0)
+    f2.seek(0)
+    for line1 in f1:
+        line1 = line1.split('\t')
+        for line2 in f2:
+            line2 = line2.split('\t')
+            print(line1, line2)
+
+        f2.seek(0)
+
+
+print_both(open(""f1.tsv"", 'r'), open(""f2.tsv"", 'r'))
+",<python-2.7><for-loop>
+46460127,0,efficiently finding prime numbers in python,"<p>here is my code:</p>
+
+<pre><code>def findPrimes():
+   prime=True
+   c=0
+   n=1
+   while n&lt;14:
+        n=n+1
+        for i in range(1,n):
+            if n%i==0:
+                prime=False
+        if prime==True:
+            print(n)
+   while c==0:
+        n=n+1
+        if (n%2==0) or (n%3==0) or (n%5==0)or (n%7==0)or (n%11==0)or (n%13==0):
+            c=0#this does nothing
+        else:
+            for i in range(5,int(n**0.5),2):
+                if n%i==0:
+                    break
+            print(n)
+findPrimes()
+</code></pre>
+
+<p>it should output:
+2
+3
+5
+7
+11
+13
+17
+...
+Instead, I get:
+17
+19
+23
+29
+31
+37
+41
+43
+47
+...
+or(with break in a different indent):
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+17
+19
+...
+why is this?</p>
+","def primes_sieve2(limit):
+a = [True] * limit                   # Initialize the primalitylist
+a[0] = a[1] = False
+
+for (i, isprime) in enumerate(a):
+    if isprime:
+        yield i
+        for n in xrange(i*i, limit, i):     # Mark factors non-prime
+            a[n] = False
+",<python><math>
+45413983,0,"Python: Dynamically update a dictionary with varying variable ""depth""","<p>I have a dictionary with various variable types - from simple strings to other nested dictionaries several levels deep. I need to create a pointer to a specific key:value pair so it can be used in a function that would update the dictionary and could be called like so:</p>
+
+<pre><code>dict_update(my_dictionary, value, level1key, *level2key....)
+</code></pre>
+
+<p>Data coming from a web request like this:</p>
+
+<pre><code>data {
+    'edited-fields': ['level1key-level2key-level3key', 'level1key-level2key-listindex', 'level1key'], 
+    'level1key-level2key-level3key': 'value1', 
+    'level1key-level2key-listindex': 'value2',
+    'level1key': 'value3' 
+}
+</code></pre>
+
+<p>I can get to the original value to read it like this:</p>
+
+<pre><code>for field in data[""edited-fields""]:
+    args = field.split(""-"")
+    value = my_dictionary
+    for arg in args:
+        if arg.isdigit():
+            arg = int(arg)
+        value = value[arg]
+    print(value)
+</code></pre>
+
+<p>But have no idea how to edit it using the same logic. I can't search and replace by the value itself as there can be duplicates and having several if statements for each possible arg count doesn't feel very pythonic.</p>
+
+<p>EXAMPLE:</p>
+
+<pre><code>data {
+    'edited-fields': ['mail-signatures-work', 'mail-signatures-personal', 'mail-outofoffice', 'todo-pending-0'], 
+    'mail-signatures-work': 'I'm Batman', 
+    'mail-signatures-personal': 'Bruce, Wayne corp.',
+    'mail-outofoffice': 'false',
+    'todo-pending-0': 'Call Martha'
+}
+</code></pre>
+
+<p>I'd like to process that request like this:</p>
+
+<pre><code>for field in data['edited-fields']:
+    update_batman_db(field, data[field])
+
+def update_batman_db(key-to-parse, value):
+    # how-to?
+    # key-to-parse ('mail-signatures-work') -&gt; batman_db pointer [""mail""][""signatures""][""work""] 
+    # etc:
+    batman_db[""mail""][""signatures""][""work""] = value
+    batman_db[""mail""][""outofoffice""] = value # one less level
+    batman_db[""todo""][""pending""][0] = value # list index
+</code></pre>
+","def update_batman_db(key, value):
+    keys = key.split('-')  # parse the received key
+    ix = batman_db         # initialize a ""pointer"" to the top most item
+    for key in keys[:-1]:  # process up to the last key item
+        try:               #  descending in the structure
+            i = int(key)
+            ix = ix[i]
+        except:
+            ix = ix[key]
+    try:                   # assign the value with last key item
+        i = int(keys[-1])
+        ix[i] = value
+    except:
+        ix[keys[-1]] = value
+",<python><dictionary>
+46323974,0,arithmetic progression in python 3.6 in def function,"<p>I write python code in atom editor and make program arithmetic sequence in function</p>
+
+<p>this is the code:</p>
+
+<pre><code>def arithmetic(n):
+flag = n
+
+for flag in range(10):
+    number = []
+    result =  number.append(flag**2)
+    return result
+</code></pre>
+
+<p>the result when print(arithmetic(5)):</p>
+
+<pre><code>None
+</code></pre>
+","def arithmetic(n):
+    flag = n
+    number = []
+    for flag in range(10):
+        number.append(flag**2)
+    return number
+
+print (arithmetic(4))
+",<python><python-3.x><data-structures>
+46570497,0,How to return an average grade with people's names and grades?,"<pre><code>def average_grade(L):
+    '''(list of list) -&gt; list
+    L is a list of lists of strings. The first item in each
+    sublist is a student name and the rest of the strings in the 
+    sublist are grade values (numeric). Return a 
+    new list of lists where each sublist has length 2 of
+    the form [student_name (str), average grade (float)]
+    &gt;&gt;&gt; average_grade([['Bob', 56, 80, 72, 90], ['Alice', 60, 88, 44, 70], ['Joe', 44, 100, 80, 60, 50]])
+    [['Bob', 74.5], ['Alice', 65.5], ['Joe', 66.8]]
+    '''
+    new_list = [[]]
+    for i in range(len(L)):
+        if type(item) == type('a'):
+            new_list.append(L)
+            if type(item) == type(50):
+                new_list.append(sum(L)/len(L))
+    return new_list
+</code></pre>
+
+<p>I have this, and it doesn't work, but I'm not sure how to fix it. Can anyone help me please?</p>
+","def average_grade(lst):
+    """""" Return students' names and their average grades. """"""
+
+    # This whole block can be replaced with this one-liner:
+    # return [[sub[0], sum(sub[1:]) / len(sub[1:])] for sub in lst]
+
+    averages = []
+
+    for sublist in lst:
+        student = sublist[0]
+        grades = sublist[1:]
+        average = sum(grades) / len(grades)
+        averages.append([student, average])
+
+    return averages
+
+&gt;&gt;&gt; average_grade([['Bob', 56, 80, 72, 90], ['Alice', 60, 88, 44, 70], ['Joe', 44, 100, 80, 60, 50]])
+[['Bob', 74.5], ['Alice', 65.5], ['Joe', 66.8]]
+",<python><python-3.x>
+46996484,0,Comparing two lists and removing matching values,"<p>I have a function that compares two lists with the purpose of removing the values that are the same and in the same position in both lists.</p>
+
+<pre><code>def remove(l1, l2):
+    r = []
+    for char in range(len(l1)):
+        if l1[char] != l2[char]:
+             r.append(char)
+    return r
+</code></pre>
+
+<p>While this returns the index of the characters that are not the same, I'm unsure as to how to get it to return the characters from l1.</p>
+
+<pre><code>    remove(['S', 'T', 'U', 'V'], ['L', 'T', 'A', 'B'])
+Expected:
+    ['S', 'U', 'V']
+Got:
+    [0, 2, 3]
+</code></pre>
+
+<p>Thanks in advance!</p>
+","def remove(l1, l2):
+    r = []
+    for char in range(len(l1)):
+        if l1[char] != l2[char]:
+             r.append(l1[char])
+    return r
+",<python-3.x><list>
+47881903,0,List of branches of a Python tree,"<p>I have a tree of Python objects. The tree is defined intrinsically: each object has a list (potentially empty) of children.
+I would like to be able to print a list of all paths from the root to each leaf.</p>
+
+<p><a href=""https://i.stack.imgur.com/hS77m.png"" rel=""nofollow noreferrer""><img src=""https://i.stack.imgur.com/hS77m.png"" alt=""enter image description here""></a></p>
+
+<p>In the case of the tree above, this would mean:</p>
+
+<pre><code>result = [
+          [Node_0001,Node_0002,Node_0004],
+          [Node_0001,Node_0002,Node_0005,Node_0007],
+          [Node_0001,Node_0003,Node_0006],
+         ]
+</code></pre>
+
+<p>The nodes must be treated as objects and not as integers (only their integer ID is displayed).
+I don't care about the order of branches in the result. Each node has an arbitrary number of children, and the level of recursion is not fixed either.</p>
+
+<p>I am trying a recursive approach:</p>
+
+<pre><code>def get_all_paths(node):
+    if len(node.children)==0:
+        return [[node]]
+    else:
+        return [[node] + get_all_paths(child) for child in node.children]
+</code></pre>
+
+<p>but I end-up with nested lists, which is not what I want:</p>
+
+<pre><code>[[Node_0001,
+  [Node_0002, [Node_0004]],
+  [Node_0002, [Node_0005, [Node_0007]]]],
+ [Node_0001, [Node_0003, [Node_0006]]]]
+</code></pre>
+
+<p><strong>Any help would be gladly welcomed, this problem is driving me crazy :p</strong></p>
+
+<p>Thanks</p>
+","def get_all_paths(node):
+    if len(node.children) == 0:
+        return [[node]]
+    return [
+        [node] + path for child in node.children for path in get_all_paths(child)
+    ]
+",<python><tree>
+46657278,0,Python stop a thread after n seconds,"<p>How can i stop a thread after 5 seconds? I want to print ""Hello World"" every seconds and then stop after 5 seconds. This is my code:</p>
+
+<pre><code>import threading
+
+def printthis():
+   threading.Timer(1.0, printthis).start()
+   print(""Hello, World!"")
+
+printthis()
+</code></pre>
+","def printthis():
+    print_count = 0
+    while print_count &lt; 5: # 5 because print_count will be 5 after printing the 5th time
+        threading.Timer(1.0, printthis).start()
+        print(""Hello, World!"")
+        print_count += 1 
+printthis()
+",<python><python-3.6>
+46639879,0,Summation of results from a loop,"<p>I would like to be able to calculate the sum of the 'totalTimes' that is returned by the loop. Any ideas on how to do it? Here is the code I currently have:</p>
+
+<p>Thanks</p>
+
+<pre><code>subjectsNum = int(input (""How many subjects do you have to study?""))
+
+def subject():
+    for i in range (1, subjectsNum+1):
+
+        subjectName = input (""What is the subject name?"")
+        pagesQuantity = float(input (""How many pages do you have to study?""))
+        pagesTime = float (input (""How long do you reckon it will take to study one page (in minutes)?""))
+        totalTime = (pagesQuantity) * (pagesTime)/60
+        print(""The estimated time to study %s is %s hours"" %(subjectName, totalTime) )
+
+
+subject()
+</code></pre>
+","def subject():
+    times = []  # this is our accumulator
+    for i in range(1, subjectsNum+1):
+        ...
+        times.append(totalTime)
+
+    return times  # return it to the outer scope
+
+times = subject()  # assign the return value to a variable
+grand_total = sum(times)  # then add it up.
+",<python><function><loops><sum>
+47223448,0,Python 3: For loop comparing strings in lists,"<p>I have a simple script that takes any number of lists, containing any number of items. I need to get iterate over these lists and display values which appear in more than one list, here is what I have so far:</p>
+
+<pre><code>def lists(*usrin):
+
+# STRINGS IN MULTIPLE LISTS
+repeat_strings = set()
+for a, b in itertools.combinations(usrin, 2):
+    repeat_strings.update(set(a).intersection(b))
+    print(', ' .join(repeat_strings))
+</code></pre>
+
+<p>As a user if I pass the function the following arguments:</p>
+
+<pre><code>lists(['g', 'gh', 'ghj', 'g'], ['j', 'ju', 'gh', 'gk', 'gn'], ['gn'])
+</code></pre>
+
+<p>I would expect to get:</p>
+
+<pre><code>gn, gh
+</code></pre>
+
+<p>As the output, however I get:</p>
+
+<pre><code>gh
+gh
+gn, gh
+</code></pre>
+
+<p>I'm not sure where the first two 'gh' are coming from. </p>
+
+<p>If I add another list to, making the function call looks like this:</p>
+
+<pre><code>lists(['g', 'gh', 'ghj', 'g'], ['j', 'ju', 'gh', 'gk', 'gn'], ['gn'], ['g', 'gk'])
+</code></pre>
+
+<p>I would expect to get:</p>
+
+<pre><code>g, gn, gk, gh
+</code></pre>
+
+<p>But instead get:</p>
+
+<pre><code>gh
+gh
+g, gh
+g, gn, gh
+g, gn, gk, gh
+g, gn, gk, gh
+</code></pre>
+
+<p>Which makes me think that I'm misunderstanding the for loop I've made, could anyone explain what I'm doing wrong?</p>
+","def lists(*usrin):
+
+    # STRINGS IN MULTIPLE LISTS
+    repeat_strings = set()
+    for a, b in itertools.combinations(usrin, 2):
+        repeat_strings.update(set(a).intersection(b))
+    print(', ' .join(repeat_strings))
+",<arrays><python-3.x><list><for-loop>
+49130192,0,Check if two values are both non-negative or both negative,"<p>Given a pair of integer values, I need to check if both are non-negative or both are negative.</p>
+
+<p>The trivial way is:</p>
+
+<pre><code>def func(a, b):
+    return (a &gt;= 0 and b &gt;= 0) or (a &lt; 0 and b &lt; 0)
+</code></pre>
+
+<p>But I am looking for something ""neater"", which I believe to be possible, so I came up with this:</p>
+
+<pre><code>def func(a, b):
+    return (a &gt;= 0) ^ (b &gt;= 0) == 0
+</code></pre>
+
+<p>However, this one feels a little ""obscure to the average reader"".</p>
+
+<p>Is there a cleaner way?</p>
+
+<p>Thank you.</p>
+","def func(a, b):
+    return a * b &gt;= 0
+",<python><python-3.x>
+47986811,0,Basic python-creating user defined function,"<p>I have a very basic doubt. I am currently using python3.0</p>
+
+<p>Below is the code I have created for user-defined function called <code>double()</code></p>
+
+<p>Code:</p>
+
+<pre><code>def double(i):
+    for n in range(2,5):
+        x=i**n
+        print(x)
+    return(x)
+print(double(2))
+</code></pre>
+
+<blockquote>
+  <p>output: 4 8 16 16</p>
+</blockquote>
+
+<p>I got 16 displayed twice, what is the error?</p>
+","def double(i):
+    for n in range(2,5):
+        x=i**n
+        print(x)
+    return(x)
+
+double(2) # don't write print here because you already print inside function
+",<python-3.x>
+42187202,0,How to change number corresponding to a key in a dictionary to a symbol,"<p>draw_histogram({'a': 2, 'b': 7, 'c': 5})</p>
+
+<p>Key:value</p>
+
+<p>prints:</p>
+
+<p>a: --</p>
+
+<p>b: -------</p>
+
+<p>c: -----</p>
+
+<p>How would you change the numbers to ""-"" and also print in different lines?</p>
+","def draw_histogram(h):
+    for k, v in h.items():
+        print(""%s: %s"" % (k, ""-"" * v))
+",<python><dictionary>
+44212271,0,Building a sum tree from leaves,"<p>Hey i am preparing for exams and i could use some help.
+The task is to build a binary sum tree (parent node key is a sum of children keys) from an array of values of leaves (left to right) which is always 2^n long. I first transform the array to an array of nodes. Then i have made a recursive function that combines pairs and calls itself on a new array of created nodes. Is there a better way of doing this task? maybe one that is ""in place""?
+e.g.</p>
+
+<p>input: [1,2,3,4]</p>
+
+<p>output:      </p>
+
+<blockquote>
+<pre><code>      10
+    /    \
+   3      7
+  / \    / \
+ 1   2  3   4
+</code></pre>
+</blockquote>
+
+<pre><code>class SumTree:
+    def __init__(self):
+        self.root = None
+
+class Node:
+    def __init__(self):
+        self.key = 0
+        self.parent = None
+        self.left = None
+        self.right = None
+
+def makeNode(key):
+    n = Node()
+    n.key = key
+    return n
+
+def buildSumTree(array):
+    for i in range(len(array)):
+        array[i] = makeNode(array[i])
+    tree = SumTree()
+    tree.root = buildSumTree_rec(array)
+    return tree
+
+def buildSumTree_rec(array):
+    if len(array) == 1 :
+        return array[0]
+    else:       
+        a = []
+        for i in range(0, len(array) // 2, 2):
+            n = makeNode(array[i].key + array[i + 1].key)
+            n.left = array[i]
+            n.right = array[i + 1]
+            array[i].parent = n
+            array[i + 1].parent = n
+            a.append(n)
+        return buildSumTree_rec(a)
+</code></pre>
+","def buildSumTree(array):
+    return buildSumTree2(array, 0, len(array))
+
+def buildSumTree2(array, startpos, length):
+    if length &lt; 1:
+        return None
+    if length == 1:
+        return makeNode(array[startpos])
+    halflen = length/2
+    l = buildSumTree2(array, startpos, halflen)
+    r = buildSumTree2(array, startpos+halflen, length-halflen)
+    n = makeNode(l.key + r.key)
+    n.left = l
+    n.right = r
+    return n
+",<python><algorithm><recursion><binary-tree>
+52324005,0,python code to calculate median for a list as input,"<p>I have the following function:</p>
+
+<pre><code>def median(list):
+  if list ==[]:
+    return []
+
+  elif len(list)==1:
+    return list[0]
+
+  else: 
+    list= sorted(list)
+    length= len(list)+1
+    median=0
+
+    if length%2==0:
+            median= (list[length/2]+list[length/2-1])/2
+    else:
+            median= list[length-1/2]    
+  return median
+</code></pre>
+
+<p>It gives me an error when I call it like this:</p>
+
+<pre><code>median([4, 5, 5, 4])
+</code></pre>
+
+<blockquote>
+  <p>resulted in an error: list index out of range</p>
+</blockquote>
+
+<p>PS:I am new to python, please excuse me if this is very basic!</p>
+","def median(list1):
+
+   length= len(list1)
+
+   if length &lt;=0 :
+       return None
+   if (length)==1:
+       return list1[length//2] 
+   else: 
+     list1= sorted(list1)
+     median=0
+
+     if length % 2 == 0:
+             median= (list1[length//2]+list1[length//2-1])/2
+     else:
+             median= list1[length//2]    
+   return median
+",<python-3.x>
+55173864,0,How to find whether a string either a key or a value in a dict or in a dict of dicts,"<p>This looks like it should be simple, but for some reason I can't get there.</p>
+
+<p>I have dicts that could be in several possible formats:</p>
+
+<pre><code>dict1 = {""repo"": ""val1"", ""org"":""val2""}
+dict2 = {""key1"":""repo"", ""key2"":""org""}
+dict3 = {""key1"":""org and stuff""}
+dict4 = {""org and stuff"":""value1""}
+dict5 = {""key1"":{""value1"":""value2""}, ""key2"":{""1"":""org""}}
+dict6 = {""org"":{""value1"":""value2""}, ""key2"":{""value1"":""value2""}}
+dict7 = {""org"":{""subkey1"":{""value1"":""value2""}}, ""key2"":{""value1"":""value2""}}
+dict8 = {""key1"":{""subkey1"":{""value1"":""org""}}, ""key2"":{""value1"":""value2""}}
+</code></pre>
+
+<p>I want to search for the string <code>'org'</code> and if it is anywhere in the dict (key, value, key[subkey][value], etc.), return true. I do not want partial string matches.</p>
+
+<p>That is, I'm looking for the following result:</p>
+
+<pre><code>True
+True
+False
+False
+True
+True
+True
+True
+</code></pre>
+
+<p>I have read these questions, but none of them quite answer because I could have nested dicts:</p>
+
+<p><a href=""https://stackoverflow.com/questions/47359801/how-to-search-for-all-the-characters-from-a-string-in-all-dictionary-values?noredirect=1&amp;lq=1"">How to search for all the characters from a string in all Dictionary.Values()</a></p>
+
+<p><a href=""https://stackoverflow.com/questions/49525777/generic-function-to-replace-value-of-a-key-in-a-dict-or-nested-dict-or-list-of-d"">Generic Function to replace value of a key in a dict or nested dict or list of dicts</a></p>
+
+<p><a href=""https://stackoverflow.com/questions/10484261/find-dictionary-items-whose-key-matches-a-substring"">Find dictionary items whose key matches a substring</a></p>
+
+<p><a href=""https://stackoverflow.com/questions/5992666/filter-a-dict-of-dict"">Filter a dict of dict</a></p>
+
+<p><a href=""https://stackoverflow.com/questions/12771710/how-can-i-check-if-the-characters-in-a-string-are-in-a-dictionary-of-values"">How can I check if the characters in a string are in a dictionary of values?</a></p>
+","def indict(thedict, thestring):
+    if thestring in thedict:
+        return True
+    for val in thedict.values():
+        if isinstance(val, dict) and indict(val, thestring):
+            return True
+        elif isinstance(val, str) and val == thestring:
+            return True
+    return False
+",<python><dictionary>
+52902926,0,How to create a function to find numbers divisible by 7 but not by 5,"<p>Im trying to write a function named find_numbers that will find all numbers  divisible by 7 and not by 5. </p>
+
+<p>My issue is the actual function
+this is what I have so far:</p>
+
+<pre><code>def find_numbers(lower_bound, upper_bound):
+    for i in range(lower_bound,upper_bound):
+        if (i % 7 == 0 and i % 5 !=0):
+            print(i)
+
+return ()
+</code></pre>
+
+<p>do i have the correct parameters? what exactly am i returning? I feel that i'm close to the correct solution, but I really am stuck :( It's printing out what I want, sort of,  but not correctly. Any help is really appreciated!! Thank you all. </p>
+
+<pre><code>lower_bound = int( input(""Lower bound to search for numbers: "") )
+upper_bound = int( input(""Upper bound to search for numbers: "") )
+
+found_numbers = find_numbers(lower_bound, upper_bound)
+
+print(""The numbers that are divisible by 7 but not by 5 
+are:\n{}"".format(found_numbers))
+</code></pre>
+","def find_numbers(lower_bound, upper_bound):
+    results=[]
+    for i in range(lower_bound,upper_bound):
+      if (i % 7 == 0 and i % 5 !=0):
+          results.append(i)
+    return results
+
+lower_bound = int( input(""Lower bound to search for numbers: "") )
+upper_bound = int( input(""Upper bound to search for numbers: "") )
+
+found_numbers = find_numbers(lower_bound, upper_bound)
+
+print(""The numbers that are divisible by 7 but not by 5 
+are:\n{}"".format(found_numbers))
+",<python><python-3.x><function>
+53744402,0,How to translate a stream of '0' and '1' to characters?,"<p>I'm trying to translate a stream of <code>0</code>, <code>1</code> to characters, 
+without using other libraries,</p>
+
+<p>for example 'Hello World':</p>
+
+<blockquote>
+  <p>0100100001000101010011000100110001001111001000000101011101001111010100100100110001000100</p>
+</blockquote>
+
+<p>I found something like this:</p>
+
+<pre><code>def BinaryToString(binary):
+    bingen = (binary[i:i+7] for i in range(0, len(binary), 7))
+    return ''.join(chr(eval('0b'+n)) for n in bingen)
+</code></pre>
+
+<p>but when I'm trying to translate, this is the answer:</p>
+
+<pre><code>&gt;&gt;&gt; BinaryToString(""0100100001000101010011000100110001001111001000000101011101001111010100100100110001000100"")
+""$\x11)Db&lt;@W'TID\x04""
+&gt;&gt;&gt; 
+</code></pre>
+","def BinaryToString(binary):
+    bingen = (binary[i:i+8] for i in range(0, len(binary), 8))
+    return ''.join(chr(eval('0b'+n)) for n in bingen)
+",<python><python-2.x>
+53765621,0,How to write a function which takes a string and turns into a single digit?,"<p>I want to write a function which turns a string into a single digit. Every letter has a number value and at the end, it should return the sum of letters but if it's bigger than 10 it should take the sum of the digits until it finds between 0 and 10. For example, if result 99 it should firstly take 9+9 = 18 then it should take 1 + 8 and the final answer must be 9.</p>
+
+<pre><code>def name_numerology(name):
+
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    numbers = '1234567891234567891234567812345678912345678912345678'
+
+    toq = list(zip(letters, numbers))
+    sie = []
+    for i in name:
+        if i in letters:
+            sie.append(toq[letters.index(i)])
+    ruk = []
+    for i, k in sie:
+        ruk.append(int(k))
+    zu = sum(ruk)
+    da = [i for i in str(zu)]
+    re = [int(i) for i in da]
+    return sum(re)
+
+print(name_numerology('rasmuuuuuuuu'))
+</code></pre>
+
+<p>output is:</p>
+
+<pre><code>12
+</code></pre>
+
+<p>I stucked here</p>
+","def name_numerology(name):
+
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    numbers = '1234567891234567891234567812345678912345678912345678'
+
+    toq = list(zip(letters, numbers))
+    sie = []
+    for i in name:
+        if i in letters:
+            sie.append(toq[letters.index(i)])
+    ruk = []
+    for i, k in sie:
+        ruk.append(int(k))
+    zu = sum(ruk)
+    while zu &gt; 10:
+
+        da = [i for i in str(zu)]
+        re = [int(i) for i in da]
+        zu = sum(re)
+        if zu is not None and zu &lt; 10:
+            return zu
+    return zu # will handle if number is less than 10 prior to while loop, otherwise ""None""
+
+print(name_numerology('rasmuuuuuuuu'))
+# 3
+print(name_numerology('GHKLLLlllllmmmmmmmmmmmmmmmmmmmmmmmmmmmmm'))
+# 4
+print(name_numerology('A'))
+# 1
+",<python><string><algorithm><function>
+55074815,0,find common unique elements of lists and returning None if empty list,"<p>Why the last part of my code doesn't work?</p>
+
+<pre><code>def common_elements(list1, list2):
+
+
+    #a list with common element
+    common_elements=[]
+    common_unique_elements=[]
+
+    for i in list1:
+        if i in list2:
+            common_elements.append(i)
+    #removing repeated elements
+            for i in common_elements:
+                if i not in common_unique_elements:
+                    common_unique_elements.append(i)
+    #returning None for empty list                
+                    if len(common_elements)==0:
+                        return None
+    return sorted(common_unique_elements)
+</code></pre>
+","def common_elements(list1, list2):
+    common = []
+    for i in list1:
+        if i in list2 and i not in common:
+            common.append(i)                
+    return None if not common else sorted(common)
+
+list1 = ['a','b','b,','c']
+list2 = ['f','b','e','a','a']
+
+print(common_elements(list1, list2))
+# ['a', 'b']
+",<python><python-3.x>

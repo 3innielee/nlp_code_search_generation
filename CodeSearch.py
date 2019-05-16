@@ -26,7 +26,18 @@ import faiss
 def read_codebase(file_path, aws=False):
   """ Read in Stack Overflow data as codebase """
   if aws:
+    codebase=[]
 
+    csv_reader = csv.reader(io.StringIO(codebase_path.read().decode("utf-8")), delimiter=",")
+
+    next(csv_reader)
+    for row in csv_reader:
+      temp_dict = {}
+      temp_dict[“question_id”] = row[0]
+      temp_dict[“question_tokens”] = nltk.word_tokenize(row[2].lower())
+      temp_dict[“snippet_tokens”] = nltk.word_tokenize(row[4])
+      temp_dict[“snippet”] = row[4].replace("\n", "<br>")
+      codebase.append(temp_dict)
   else:
     codebase=[]
     with open(file_path) as f:
@@ -54,12 +65,13 @@ def load_embeddings(embeddings_path, aws=False):
   """
   if aws:
     embeddings = {}
-    reader = csv.reader(embeddings_path, delimiter='\t')
+    reader = csv.reader(io.StringIO(embeddings_path.read().decode("utf-8")), delimiter="\t")
     for line in reader:
       word = line[0]
       embedding = np.array(line[1:]).astype(np.float32)
+
       embeddings[word] = embedding
-    dim = len(line) - 1
+      dim = len(line) - 1
   else:
     embeddings = {}
     

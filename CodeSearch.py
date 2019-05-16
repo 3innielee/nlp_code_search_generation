@@ -4,15 +4,16 @@ import CodeSearch as CS
 
 embedding_path = 'data/stackoverflow_code_search_csv/final_embedding.tsv'
 codebase_path = 'data/stackoverflow_code_search_csv/15_19_Clean_Data.csv'
-question = "this is a user input quesiton."
-#questions = ["this is a user input quesiton."] # for faiss
 codebase, word_embedding, document_embeddings =CS.code_search_init(embedding_path, codebase_path)
 
+question = "this is a user input quesiton."
 document_index, distance=CS.get_most_relevant_document(question, word_embedding, document_embeddings)
-#document_index, distance=CS.get_most_relevant_document_faiss(questions, word_embedding, document_embeddings) # for faiss
-
 result = CS.get_snippet_results(document_index, codebase)
-result = CS.get_snippet_results_faiss(document_index, codebase) # for faiss
+
+# for faiss
+#questions = ["this is a user input quesiton."] 
+#document_index, distance=CS.get_most_relevant_document_faiss(questions, word_embedding, document_embeddings)
+#result = CS.get_snippet_results_faiss(document_index, codebase)
 
 """
 import json

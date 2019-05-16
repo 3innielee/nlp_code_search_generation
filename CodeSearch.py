@@ -22,6 +22,7 @@ import nltk
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
+import io
 
 def read_codebase(file_path, aws=False):
   """ Read in Stack Overflow data as codebase """

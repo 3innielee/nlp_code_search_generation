@@ -23,23 +23,26 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 
-def read_codebase(file_path):
+def read_codebase(file_path, aws=False):
   """ Read in Stack Overflow data as codebase """
-  codebase=[]
-  with open(file_path) as f:
-    csv_reader = csv.reader(f, delimiter=',')
-    
-    next(csv_reader)
-    for row in csv_reader:
-      temp_dict = {}
-      temp_dict["question_id"] = row[0]
-      temp_dict["question_tokens"] = nltk.word_tokenize(row[2].lower())
-      temp_dict["snippet_tokens"] = nltk.word_tokenize(row[4])
-      temp_dict["snippet"] = row[4].replace("\n", "<br>")
-      codebase.append(temp_dict) 
+  if aws:
+
+  else:
+    codebase=[]
+    with open(file_path) as f:
+      csv_reader = csv.reader(f, delimiter=',')
+      
+      next(csv_reader)
+      for row in csv_reader:
+        temp_dict = {}
+        temp_dict["question_id"] = row[0]
+        temp_dict["question_tokens"] = nltk.word_tokenize(row[2].lower())
+        temp_dict["snippet_tokens"] = nltk.word_tokenize(row[4])
+        temp_dict["snippet"] = row[4].replace("\n", "<br>")
+        codebase.append(temp_dict) 
   return codebase
 
-def load_embeddings(embeddings_path):
+def load_embeddings(embeddings_path, aws=False):
   """Loads pre-trained word embeddings from tsv file.
 
   Args:
@@ -49,15 +52,24 @@ def load_embeddings(embeddings_path):
     embeddings - dict mapping words to vectors;
     dim - dimension of the vectors.
   """
-  embeddings = {}
-  
-  with open(embeddings_path, newline='') as embedding_file:
-    reader = csv.reader(embedding_file, delimiter='\t')
+  if aws:
+    embeddings = {}
+    reader = csv.reader(embeddings_path, delimiter='\t')
     for line in reader:
       word = line[0]
       embedding = np.array(line[1:]).astype(np.float32)
       embeddings[word] = embedding
     dim = len(line) - 1
+  else:
+    embeddings = {}
+    
+    with open(embeddings_path, newline='') as embedding_file:
+      reader = csv.reader(embedding_file, delimiter='\t')
+      for line in reader:
+        word = line[0]
+        embedding = np.array(line[1:]).astype(np.float32)
+        embeddings[word] = embedding
+      dim = len(line) - 1
   
   return embeddings, dim
 

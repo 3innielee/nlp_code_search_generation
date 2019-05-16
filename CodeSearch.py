@@ -192,7 +192,7 @@ def get_most_relevant_document_faiss(questions, word_embedding, doc_embedding, n
 
   return I, D
 
-def code_search_init(embedding_path, codebase_path):
+def code_search_init(embedding_path, codebase_path, aws=False):
   """ Compute document embeddings for all functions in codebase.
 
   Args:
@@ -204,8 +204,8 @@ def code_search_init(embedding_path, codebase_path):
     word_embedding: Pre-trained word embedding
     document_embeddings: Document embeddings for all functions in codebase
   """
-  codebase=read_codebase(codebase_path) # [{"question_id": int, "intent_tokens": [...]}, ...]
-  word_embedding, dim = load_embeddings(embedding_path)
+  codebase=read_codebase(codebase_path, aws) # [{"question_id": int, "intent_tokens": [...]}, ...]
+  word_embedding, dim = load_embeddings(embedding_path, aws)
 
   train_size=len(codebase)
   document_embeddings=np.zeros((train_size, dim))

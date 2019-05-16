@@ -4,17 +4,20 @@ import CodeSearch as CS
 
 embedding_path = 'data/stackoverflow_code_search_csv/final_embedding.tsv'
 codebase_path = 'data/stackoverflow_code_search_csv/15_19_Clean_Data.csv'
-questions = ["this is a user input quesiton."]
-
+question = "this is a user input quesiton."
+#questions = ["this is a user input quesiton."] # for faiss
 codebase, word_embedding, document_embeddings =CS.code_search_init(embedding_path, codebase_path)
-document_index, distance=CS.get_most_relevant_document_faiss(questions, word_embedding, document_embeddings)
+
+document_index, distance=CS.get_most_relevant_document(question, word_embedding, document_embeddings)
+#document_index, distance=CS.get_most_relevant_document_faiss(questions, word_embedding, document_embeddings) # for faiss
+
 result = CS.get_snippet_results(document_index, codebase)
+result = CS.get_snippet_results_faiss(document_index, codebase) # for faiss
 
 """
 import json
 import csv
 import nltk
-from time import time
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
@@ -31,7 +34,7 @@ def read_codebase(file_path):
       temp_dict["question_id"] = row[0]
       temp_dict["question_tokens"] = nltk.word_tokenize(row[2].lower())
       temp_dict["snippet_tokens"] = nltk.word_tokenize(row[4])
-      temp_dict["snippet"] = row[4]
+      temp_dict["snippet"] = row[4].replace("\n", "<br>")
       codebase.append(temp_dict) 
   return codebase
 
@@ -57,7 +60,7 @@ def load_embeddings(embeddings_path):
   
   return embeddings, dim
 
-def get_most_relevant_document(question, word_embedding, doc_embedding, num=10):
+def get_most_relevant_document(question, word_embedding, document_embeddings, num=10):
   """Return the functions that are most relevant to the natual language question.
 
   Args:
@@ -74,14 +77,13 @@ def get_most_relevant_document(question, word_embedding, doc_embedding, num=10):
   tokenized_ques=question.split()
   vec_ques=np.zeros((1,document_embeddings.shape[1])) #vocab_size
   token_count=0
-  has_token_in_embedding=False
+
   for token in tokenized_ques:
     if token in word_embedding:
-      has_token_in_embedding=True
       vec_ques+=word_embedding[token]
       token_count+=1
   
-  if has_token_in_embedding:
+  if token_count>0:
     mean_vec_ques=vec_ques/token_count
 
 
@@ -193,7 +195,7 @@ def code_search_init(embedding_path, codebase_path):
 
   return codebase, word_embedding, document_embeddings
 
-def get_snippet_results(document_index, codebase):
+def get_snippet_results_faiss(document_index, codebase):
   result=[]
   for query in document_index:
     tmp=[]
@@ -202,6 +204,11 @@ def get_snippet_results(document_index, codebase):
     result.append(tmp)
   return result
 
+def get_snippet_results(document_index, codebase):
+  result=[]
+  for snippet_index in document_index:
+    result.append(codebase[snippet_index]["snippet"])
+  return result
 
 
 

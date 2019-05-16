@@ -29,7 +29,7 @@ def read_codebase(file_path, aws=False):
   if aws:
     codebase=[]
 
-    csv_reader = csv.reader(io.StringIO(codebase_path.read().decode("utf-8")), delimiter=",")
+    csv_reader = csv.reader(io.StringIO(file_path.read().decode("utf-8")), delimiter=",")
 
     next(csv_reader)
     for row in csv_reader:
